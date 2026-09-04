@@ -1,0 +1,42 @@
+{
+  "name": "browser-harness-ts",
+  "version": "0.1.0",
+  "description": "Every Chrome DevTools Protocol method as a typed JS call. Persistent CDP session behind a tiny HTTP server + CLI. Node port of browser-use/browser-harness-js.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "bh": "dist/cli.js"
+  },
+  "main": "dist/session.js",
+  "types": "dist/session.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/session.d.ts",
+      "default": "./dist/session.js"
+    }
+  },
+  "files": [
+    "dist",
+    "skill",
+    "assets",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "gen": "node scripts/gen.ts",
+    "build:sdk": "node scripts/build-sdk.mjs",
+    "test": "npm run build && node --test \"dist/*.test.js\"",
+    "repl": "node dist/repl.js",
+    "prepack": "npm run build && npm run build:sdk"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0"
+  }
+}
