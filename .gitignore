@@ -1,0 +1,8 @@
+node_modules/
+dist/
+browser-harness-js/
+*.log
+.DS_Store
+smoke-test.png
+.bh-dev/
+.ohmyagents/
