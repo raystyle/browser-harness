@@ -3,7 +3,7 @@
 从 LLM 到 Chrome 的完整操控平台，两层 API 一条守护进程：
 
 1. **协议层**："协议即 API"，CDP 全部 56 域 652 方法带类型直调，无封装遮蔽（源自 [browser-use/browser-harness-js](https://github.com/browser-use/browser-harness-js) 的忠实移植）
-2. **语义层**：[browser-harness](https://github.com/raystyle/browser-harness)（Python 版）同名 snake_case 助手，tab 纪律、等待判官、登录墙策略、自愈；97 站 domain-skills 知识库即插即用
+2. **语义层**：[browser-harness-py](https://github.com/raystyle/browser-harness-py)（Python 版）同名 snake_case 助手，tab 纪律、等待判官、登录墙策略、自愈；97 站 domain-skills 知识库即插即用
 
 **零运行时依赖**（Node ≥22 内置 WebSocket/fetch/sqlite）；长驻 daemon 持久会话；agent 专属 Chrome 隔离（继承老栈登录态）；插件应用生态（web-fetch / 搜索 / cookies / X 监控全家桶）；每动作一帧录制 + 视频合成；任务级浏览器隔离。
 

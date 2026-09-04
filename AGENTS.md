@@ -4,7 +4,7 @@
 
 ## 一、项目定位
 
-1. **本质**：从 LLM 到 Chrome 的完整操控平台。[browser-use/browser-harness-js](https://github.com/browser-use/browser-harness-js)（Bun 运行时）的 Node/TypeScript 忠实移植，平台能力对齐 Python 主仓 [browser-harness](https://github.com/raystyle/browser-harness)。两层 API 一条守护进程：协议层（CDP 56 域 652 方法带类型直调，无封装遮蔽）+ 语义层（Python 同名 snake_case 助手，domain-skills 97 站资产原样可用）。
+1. **本质**：从 LLM 到 Chrome 的完整操控平台。[browser-use/browser-harness-js](https://github.com/browser-use/browser-harness-js)（Bun 运行时）的 Node/TypeScript 忠实移植，平台能力对齐 Python 主仓 [browser-harness-py](https://github.com/raystyle/browser-harness-py)。两层 API 一条守护进程：协议层（CDP 56 域 652 方法带类型直调，无封装遮蔽）+ 语义层（Python 同名 snake_case 助手，domain-skills 97 站资产原样可用）。
 2. **边界**：做：协议直调、语义助手、daemon 持久会话、agent 专属 Chrome（继承老栈登录态）、插件应用、录制与视频、任务级浏览器隔离、技能分发。不做：MCP 桥接、Python 仓的文档治理子系统、上游没有的新功能（忠实移植原则：不加新功能、保留原版行为）。质量承诺：零运行时依赖（Node ≥22 内置 WebSocket/fetch/sqlite）、npm 三平台分发、全方法带类型。
 3. **交互对象**：agent（`bh` CLI + `browser` 技能，装到 `~/.claude/skills/browser/`）；Node 程序（npm 库入口 `dist/session.js`）；人（`bh doctor` 诊断面）。
 

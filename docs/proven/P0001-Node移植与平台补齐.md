@@ -6,7 +6,7 @@
 
 ## 背景与问题
 
-上游 [browser-use/browser-harness-js](https://github.com/browser-use/browser-harness-js) 跑在 Bun 运行时上；agent 生态是 Node 原生环境，装 Bun 只为这一个工具不值。同时 Python 主仓 browser-harness 已沉淀成熟平台能力（daemon 语义、语义助手、插件生态、agent Chrome、任务隔离、录制视频、技能分发），上游 JS 版只覆盖了其中一小块。
+上游 [browser-use/browser-harness-js](https://github.com/browser-use/browser-harness-js) 跑在 Bun 运行时上；agent 生态是 Node 原生环境，装 Bun 只为这一个工具不值。同时 Python 主仓 [browser-harness-py](https://github.com/raystyle/browser-harness-py) 已沉淀成熟平台能力（daemon 语义、语义助手、插件生态、agent Chrome、任务隔离、录制视频、技能分发），上游 JS 版只覆盖了其中一小块。
 
 ## 目标与非目标
 
