@@ -76,7 +76,7 @@ EOF
 - `bh google-search <query> [--top N]`：两步契约搜索（第一步出指标落盘，`bh google-search pluck gs_search` 取数）；CAPTCHA 如实报不自动重试
 - `bh bing-search <query>`：浏览器搜索 + 拦截检测 + 摘要
 - `bh cookies export|import`：CDP 存取，默认拒绝全量导出（--domain/--all）
-- `bh x-monitor`：X 监控全家桶（agent Chrome + rmux 自愈监督 + worker 心跳收割 + SQLite 去重库）
+- `bh x-monitor [start]`：X 监控全家桶（agent Chrome + rmux 自愈监督 + worker 心跳收割 + SQLite 去重库）；`bh x-monitor stop|close` 按序拆栈（先杀 supervisor 防重拉，再杀 worker，再停专属 daemon）
 - `bh x-search <kw>|--recent|--since 1h|--stats [--group-by day] [--csv]`：查本地库，不碰浏览器
 - `bh x-harvest <query> --from --to [--step 1d]`：时间分片全量收割（X 搜索固定供给窗 ~10-20 条，全量靠 since:/until: 分片）
 

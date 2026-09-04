@@ -15,6 +15,7 @@
 
 | 日期 | 进展 |
 | --- | --- |
+| 2026-09-04 | D10 x-monitor 关闭原语：stop|close 按序拆栈（supervisor -> worker -> 专属 daemon），start 显式化；空态幂等与按序停止均实测 |
 | 2026-09-04 | D09 rmux 探测原语：bh rmux（panes 结构化 list + status 聚合），补齐监督面可观测性；同日完成 Python 版指代更新（browser-harness-py）与首提交推送（CI 六格首跑全绿） |
 | 2026-09-04 | D08 状态探测原语落地：bh sessions（代码事实提炼的对象模型 + 实例清单 + 窗口分组 tab 表 + 附着策略）与 bh --new-tab；首用即发现 2 僵尸注册 + 4 残留 tab 并清理 |
 | 2026-09-04 | D07 google-search 标准化落地：ensure_app_sdk 基建（源指纹注册判重）+ __gs SDK 1.1.0 + esbuild 构建链 + 两步契约；G002 六项门禁全过；踩坑 M008 四连环（execCommand 受控框/导航毁上下文/注册快照挡新版/过渡期瞬态）全部机制化 |
@@ -32,6 +33,7 @@
 
 | 日期 | 目标 | 结果 |
 | --- | --- | --- |
+| 2026-09-04 | D10 x-monitor 关闭原语 | 达成：stop|close 按序拆栈，生命周期闭环（启停对称） |
 | 2026-09-04 | D09 rmux 探测原语 | 达成：bh rmux 命令；监督面（x-monitor 链）可观测 |
 | 2026-09-04 | D08 状态探测原语 | 达成：sessions + --new-tab；对象模型以代码为准（用户纠偏生效） |
 | 2026-09-04 | D07 google-search 标准化 | 达成：G002 标准首个落地，基建 ensure_app_sdk 就位，六项门禁全过 |
