@@ -92,6 +92,55 @@ export class Rmux {
     return r.out.split('\n').filter(Boolean);
   }
 
+  /** True when the label's session daemon answers (list-sessions exit 0). */
+  async daemonAlive(): Promise<boolean> {
+    if (!this.bin) return false;
+    const r = await this.run(['list-sessions']);
+    return r.code === 0;
+  }
+
+  /** Structured pane inventory: session/window/pane identity + live context. */
+  async panes(): Promise<Array<{ session: string; window: string; windowIndex: number; paneIndex: number; target: string; command: string; title: string; path: string }>> {
+    const r = await this.run(['list-panes', '-a', '-F',
+      '#{session_name}|#{window_index}|#{window_name}|#{pane_index}|#{pane_current_command}|#{pane_title}|#{pane_current_path}']);
+    if (r.code !== 0) return [];
+    const out: Array<{ session: string; window: string; windowIndex: number; paneIndex: number; target: string; command: string; title: string; path: string }> = [];
+    for (const line of r.out.split('\n')) {
+      if (!line.trim()) continue;
+      const [session, wIdx, wName, pIdx, command, title, path] = line.split('|');
+      const windowIndex = Number(wIdx), paneIndex = Number(pIdx);
+      if (!session || !Number.isFinite(windowIndex) || !Number.isFinite(paneIndex)) continue;
+      out.push({
+        session, window: wName ?? '', windowIndex, paneIndex,
+        target: `${session}:${windowIndex}.${paneIndex}`,
+        command: command ?? '', title: title ?? '', path: path ?? '',
+      });
+    }
+    return out;
+  }
+
+  /** Aggregate probe: install, daemon liveness, and the session/pane tree. */
+  async status(): Promise<{
+    installed: boolean; version: string | null; label: string; daemon: boolean;
+    sessions: Array<{ name: string; windows: number; panes: Array<{ target: string; window: string; command: string; title: string; path: string }> }>;
+  }> {
+    const version = this.version();
+    if (!version) return { installed: false, version: null, label: this.label, daemon: false, sessions: [] };
+    const daemon = await this.daemonAlive();
+    const panes = daemon ? await this.panes() : [];
+    const bySession = new Map<string, { name: string; windows: Set<number>; panes: Array<{ target: string; window: string; command: string; title: string; path: string }> }>();
+    for (const p of panes) {
+      let s = bySession.get(p.session);
+      if (!s) { s = { name: p.session, windows: new Set(), panes: [] }; bySession.set(p.session, s); }
+      s.windows.add(p.windowIndex);
+      s.panes.push({ target: p.target, window: p.window, command: p.command, title: p.title, path: p.path });
+    }
+    return {
+      installed: true, version, label: this.label, daemon,
+      sessions: [...bySession.values()].map(s => ({ name: s.name, windows: s.windows.size, panes: s.panes })),
+    };
+  }
+
   async hasSession(name: string): Promise<boolean> {
     const r = await this.run(['has-session', '-t', name]);
     return r.code === 0;

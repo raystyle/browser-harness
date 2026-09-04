@@ -17,7 +17,7 @@
 | 技能与资产分发 | `bh skill status/sync`（三线哈希防漂移、只增不删） |
 | 抓取/搜索 | `bh web-fetch`、`bh google-search`（两步契约：`--top N` 出指标，`pluck gs_search` 取数）、`bh bing-search` |
 | Cookie 迁移 | `bh cookies export/import` |
-| X 监控 | `bh x-monitor`（rmux 自愈监督）-> `bh x-search` / `bh x-harvest` |
+| X 监控 | `bh x-monitor`（rmux 自愈监督）-> `bh x-search` / `bh x-harvest`；`bh rmux` 看监督面状态（会话/pane 树） |
 | 录制/视频 | `bh record …` -> `bh video init/export` |
 | 状态探测 | `bh sessions`：对象模型（instance/browser/session/tab）+ 全实例清单 + 窗口分组 tab 表 + 新任务附着策略（attach / app 复用 / `--new-tab` 显式新开 / `--once` 隔离栈） |
 | 任务隔离 | `bh --once '<js>'`、`bh --batch <file>`、`bh --new-tab '<js>'`（显式新开 tab 执行） |

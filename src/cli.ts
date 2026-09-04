@@ -162,6 +162,7 @@ function usage(): never {
     '  bh --logs     # stream the server log',
     '',
     '  bh sessions   # object model + live inventory: instances, daemons, tab tables',
+    '  bh rmux       # rmux supervision plane: install, daemon, session/pane tree',
     "  bh --new-tab '<js>'  # open a fresh about:blank tab, attach, run there (tab stays)",
     '',
     `Env: CDP_REPL_PORT (default 9876), CDP_REPL_LOG (default ${LOG}).`,
@@ -236,6 +237,12 @@ async function dispatch(arg: string | undefined, argv: string[]): Promise<void> 
   if (argv[0] === 'sessions') {
     const { runSessions } = await import('./admin.js');
     console.log(JSON.stringify(await runSessions(), null, 1));
+    return;
+  }
+  if (argv[0] === 'rmux') {
+    // Probe the rmux supervision plane: install, daemon liveness, session/pane tree.
+    const { Rmux } = await import('./rmux.js');
+    console.log(JSON.stringify(await new Rmux().status(), null, 1));
     return;
   }
   if (argv[0] === '--batch') {

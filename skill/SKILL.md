@@ -62,6 +62,7 @@ EOF
 | `bh record start\|stop\|enable\|disable\|status` | 每动作一帧录制 |
 | `bh video init\|export\|review <dir>` | 帧序列 -> mp4（ffmpeg）/ HTML 幻灯片降级 |
 | `bh sessions` | 对象模型 + 全实例清单 + 窗口分组 tab 表 + 附着策略 |
+| `bh rmux` | rmux 监督面探测：安装/daemon 活性/会话与 pane 树（target/command/title/path） |
 | `bh --new-tab '<js>'` | 显式新开 about:blank 附着执行 |
 | `bh run <name> [args]` | 显式插件调用 |
 | `bh <name> [args]` | 未知命令 = 插件路由 |
