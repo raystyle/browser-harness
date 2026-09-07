@@ -21,6 +21,7 @@
 - Windows 用 PowerShell 7(`pwsh`)；Linux/macOS/WSL 用该平台常规 shell
 - 未经指示不做 commit/push/reset 等变更操作；提交一事一提交（feat:/fix:/docs:/chore:/test: 前缀）
 - 文档与源码 UTF-8；路径分隔符一律 `node:path` API 拼接，禁止手拼 `\` 或 `/`
+- **两套家禁止混用**（M014）：开发走 `<repo>/.bh-dev`（`node dist/cli.js` / `npm link`）；安装验收走 `npm pack` + `npm install -g ./browser-harness-ts-*.tgz`，只用 PATH 上的 `bh`（`~/.config/browser-harness`）。禁止从仓库起 dashboard 去看安装态正在跑的应用；禁止把 `npm install -g .` 或 `npm link` 当安装验收。流程见 R001「开发 vs 安装验收」
 
 ### 编码
 
@@ -50,6 +51,7 @@
 > 摘要层：一行摘要定去向，行为细则唯一权威在 R 文档。
 
 - 构建/测试/发布/技能分发/诊断 -> `docs/references/R001-构建测试与发布.md`
+- 安装验收 vs 开发（BH_HOME、看板不刷新、pack 还是 link） -> R001「开发 vs 安装验收」+ `docs/mistakes/M103-开发与安装验收踩坑.md`（M014）
 - 开发/升级插件应用（站点搜索、抓取、监控类） -> `docs/references/R002-插件应用开发方法.md`（方法）+ `docs/guide/G002-插件应用开发标准.md`（强制项与验收门禁）
 - 协议升级（新 Chrome 方法、protocol JSON 换版） -> R001「代码生成」节
 - daemon 异常 / WebSocket 连接失败 / 端口冲突 -> R001「诊断」节 + `docs/mistakes/M101-移植与平台补齐踩坑.md`

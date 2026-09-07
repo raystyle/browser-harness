@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+- **看板左侧栏**：去掉标题栏「部署信息」按钮，改为主区左侧分割条箭头收起/展开
+- **看板禁止当工作 tab**：default 与应用 attach/goto/switch/new_tab 拒绝 `http://127.0.0.1:9870`；已附着则跳到新空白页再导航，不把看板页开走
+- **墙通知文案**：标题 `bh · <判定>`，正文三行（页面 / 原因 / 地址）
+- **bing-search G002 升级（D22）**：常驻 `__bs` SDK + 就绪判官 + 两步契约 `bs_search`；墙走 CAPTCHA\|WALL 不重试；修 title 偶发空（M004）
+- **x-intel search/harvest 合约对齐（D23）**：JSON 固定形 `_ok/_v/_ts`；空库 count=0；harvest 完成打指标不打正文
+- **监督面纠偏**：supervisor-core 不再把缺心跳当 stale（冷启动/unwatch 不再误杀 page-detect）；`unwatch` 写 stopped 后 ensureCompanions / supervisor 都跳过；init companions 先 provisionWorkspace 再拉起；x-intel 仍自管监督（避免双循环竞态）
+- **X 监控应用定名为 x-intel**：去掉旧名与 CLI 别名；workspace 退役旧入口与组件目录
+- **看板**：lazy 未附着显示待命（不再误报已脱离）；应用卡拖放监听只绑一次；最近事件按契约渲染（x-intel 零入库不写 event）
 - **medium-search 插件应用（D15）**：medium.com 站内搜索 + 文章抓取（SDK `__ms` 常驻 + 两步契约 `ms_search`/`ms_article` + 人机共存 tab 策略）；G002 六门禁验收，墙场景被真 CF 挑战实证
 - **看板墙提醒（D16/D18）**：墙类判定边沿弹 Chrome 系统通知（requireInteraction + tag 去重 + 点击只聚焦看板）+ 右栏钉住横幅 + 权限引导；page-detect 转 watch 常驻监测全部页面（Google 验证/Cloudflare 挑战/登录墙/资源阻断/白屏持久化），通知吃 alerts 流防重放
 - **看板应用卡片区（D17）**：独立「应用」区七卡（描述/运行流水/日志行/库存/墙高亮，折叠拖拽持久化）；平台层 app-runs.jsonl 运行流水（应用零改造）；部署信息栏默认隐藏；刷新 tick 内联 tag 流
@@ -13,8 +21,8 @@
 
 ## [0.2.1] - 2026-09-07
 
-- **看板实例状态渲染 BUG 修复**：数据层早已平铺（alive 在实例行上），前端仍读旧嵌套结构（i.daemon.alive）导致 x-core 恒显 down；渲染层全面改读平铺字段
-- **独立应用与 x-core 组件解耦**：google-search/web-fetch/bing-search/cookie-io/page-detect 内联 bhHome（修复 google-search 因 import 已删 x-lib 而崩溃）；cookie-io 用法文案同步改名
+- **看板实例状态渲染 BUG 修复**：数据层早已平铺（alive 在实例行上），前端仍读旧嵌套结构（i.daemon.alive）导致 x-intel 恒显 down；渲染层全面改读平铺字段
+- **独立应用与 x-intel 组件解耦**：google-search/web-fetch/bing-search/cookie-io/page-detect 内联 bhHome（修复 google-search 因 import 已删 x-lib 而崩溃）；cookie-io 用法文案同步改名
 - **page-detect 七判建议中文化**；domain-skills 副本遗留（x 系空壳 + .py）清理，源=副本=94 站
 - 全面 review 验证：55 测试、六应用冒烟、守护铁律拦截（Browser.close / 外来 targetId）、domain-skills 四机制（挂载/内容/回退/一致性）
 

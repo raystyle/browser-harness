@@ -16,13 +16,22 @@
 | x-monitor 改造 | 收割闭环已实证，事件触发版待复验 | 去spawn+预检完成；实跑修复 7 处（attachedTargetId 事件跟踪、ensureDaemon 双假就绪、失败轮 5s 重试、Chrome 155 DOM 序列化、弹窗机枪改指数退避、daemon 首连失败不退出）；收割实证 +38 入库 x_tweets.db；触发模型按用户裁定改为 5s pill 探测自动触发（5min 兜底、60s 最小间隔、阅读中不清扫）；窗口操纵代码整段删除（运行期零 setWindowBounds/activate，硬规则入 SKILL：只关自有 tab，绝不关用户 tab 与附着浏览器）；用户浏览器曾被 Chrome Dev 自身崩溃带走（事件日志 0xc0000409，与 bh 无关），重开浏览器后待复验触发版 | PLAN #5 |
 | 验收冒烟 + 文档同步 | 进行中 | 附着/共存/授权/空态四景已实测；x-monitor 景差最后一轮（harvest 入库 db）；README/SKILL/R001/CHANGELOG 已同步 | PLAN #6 |
 
+## D22 任务清单
+
+| 任务项 | 进度 | 说明 | 出处 |
+| --- | --- | --- | --- |
+| bing SDK `__bs` | 已完成 | ready/results/extract + 挑战检测 + ck/a 解码 | PLAN #1 |
+| bing-search 命令层两步契约 | 已完成 | stash bs_search / pluck / ready；墙不重试 | PLAN #2 |
+| 文档同步 | 已完成 | SKILL / README / search.md / G002 / CHANGELOG | PLAN #3 |
+| 开发态实搜冒烟 | 已完成 | 指标 count=5 bytes=1290、pluck 五条 title 均非空 [实证: 2026-09-07 TypeScript browser] | PLAN #4 |
+
 ## 待办池（与 D11 无依赖）
 
 | 任务项 | 进度 | 说明 | 出处 |
 | --- | --- | --- | --- |
-| npm 发布（0.1.0） | 未开始 | 建议 D11 定型后发布（架构转向先落定再对外定型 API 面）；走 R001 + CHANGELOG 封版 | ROADMAP |
-| bing-search 按 G002 升级 | 未开始 | 复用 google 全套路；顺带修 title 偶发空（M004 同源）；D11 后经由附着通道跑 | G002 迁移分级 |
-| mp4 视频管线验证 | 未开始 | 依赖装 ffmpeg；验证后回填 M005 与 ROADMAP | ROADMAP + M005 |
-| 搜索与抓取极限测试 | 搁置 | D04 前身，用户缩小范围时明确待重启 | PRD D04 |
-| x-search / x-harvest 标准化 | 观望 | 触发痛点再迁；D11 后 x 系应用形态随 x-monitor 改造联动，暂不单独动 | G002 迁移分级 |
-| MCP 桥接 | 挂起 | 不在忠实移植范围；有真实需求走 PRD | ROADMAP |
+| npm 发布（0.1.0） | 不做 | 2026-09-07 用户裁定不做；本地 `npm pack` + 全局 tgz 安装验收即可，不走 registry 发布 | ROADMAP |
+| bing-search 按 G002 升级 | 已完成 | D22：__bs + 两步契约 bs_search；实搜 5 条 title 非空 [实证: 2026-09-07] | G002 / PRD D22 |
+| mp4 视频管线验证 | 挂起 | 2026-09-07 用户改裁为挂起；保持 HTML 幻灯片降级，待装 ffmpeg 后再验 mp4 | ROADMAP + M005 |
+| 搜索与抓取极限测试 | 已完成 | D24：google 5 条 + bing 5 条 + web-fetch 一篇正文/一篇 DNS 失败如实记 [实证: 2026-09-07 diary] | PRD D24 |
+| x-search / x-harvest 标准化 | 已完成 | D23：JSON `{_ok,_v,_ts}`；空库 count=0；harvest 打指标 | G002 / PRD D23 |
+| MCP 桥接 | 不做 | 2026-09-07 用户裁定不做；不在忠实移植范围，不再挂起等待 | ROADMAP |

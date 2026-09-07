@@ -4,23 +4,20 @@
 
 ## 当前目标
 
-D11 重构为「附着用户浏览器 + 人机共存」形态（GOAL 锚点回指 PRD D11）
+D22 bing-search 按 G002 升级（GOAL 回指 PRD D22；同批 D23/D24 排在本目标之后）
 
 ## 计划项
 
 | # | 计划 | 依据 |
 | --- | --- | --- |
-| 1 | S001 研究：用户自开浏览器附着通道可行性（Chrome 新版限制核查、通道盘点、发现机制与引导设计、PoC 实测） | PRD D11 生死门裁定：证伪则告警退出 |
-| 2 | 补测试网：存活模块（session/paths/env/helpers/harness 语义）单测锁行为，绿了才动结构 | 拷问第 1 轮门禁裁定 |
-| 3 | 架构落地：新 discovery 模块（用户浏览器发现与附着）；Harness 默认路径改附着；空态如实报 + 一次性引导 | PRD D11 共识：agentChrome 整文件删重写；M006 教训：不静默兜底 |
-| 4 | 移除 spawn 家族：agentChrome、taskIsolation、agent-chrome 锁与归属记录；PRD 已记录 D02 子能力被取代 | 拷问第 2、3 轮裁定 |
-| 5 | 共存铁律落地：专属 tab（后台创建不抢焦点）+ 显式授权（调用方指定 targetId/tab）；attachFirstPage 重写为永不选用户真实页面；x-monitor 改造为附着用户浏览器专属 tab 跑监控，supervisor 只重拉 worker | 拷问第 2、3 轮裁定 |
-| 6 | 验收归档：build + test + 实测冒烟（附着、共存、授权、空态、x-monitor 五景）；README 与 SKILL 行为基线同步；CHANGELOG；GOAL 历史回填 | AGENTS 义务表 |
+| 1 | 新增 `assets/sdk/bing.ts`（`__bs`，ready/results/extract，挑战检测，Bing `/ck/a` 解码）+ `npm run build:sdk` | G002 结构与命名；google-search 全套路 |
+| 2 | 重写 `assets/apps/bing-search.mjs`：ensure_app_sdk -> ready -> goto `/search?q=` -> 轮询 results -> stash `bs_search`；`pluck` / `ready`；墙 CAPTCHA\|WALL 不重试 | G002 强制项 1-6；M004/M008 |
+| 3 | 同步 SKILL / README / primitives/search.md / G002 迁移表 / CHANGELOG | AGENTS 行为基线 |
+| 4 | 开发态实搜一轮：指标 <1KB、pluck 有 title/url、墙如实报或无墙记 diary | G002 验收门禁 |
 
 ## 完成的定义
 
-- [ ] S001 结论为可行 [待验证: PoC 实测用户自开浏览器被发现、附着、专属 tab 操作、不抢焦点]
-- [ ] 存活模块测试网全绿后再动结构 [待验证]
-- [ ] spawn 家族零残留（rg 验证无 launchAgentChrome 与 taskIsolation 引用） [待验证]
-- [ ] 五景冒烟实测通过 [待验证]
-- [ ] 若 S001 证伪：告警退出、PRD 记录终止、不做代码改动 [假设: 按 PRD 裁定执行]
+- [x] `bh bing-search <q> --top N` 只打指标 JSON（`_ok/_v/_ts/count/shape/bytes/cache`） [实证: 2026-09-07 count=5]
+- [x] `bh bing-search pluck bs_search` 取出本批结果，title 非空 [实证: 五条均有 title]
+- [x] 墙/挑战走 CAPTCHA\|WALL，不返回空数组、不自动重试（本轮无挑战页，代码路径已接）
+- [x] SKILL 面登记命令 / cache 名 / 错误决策树 / 版本合约

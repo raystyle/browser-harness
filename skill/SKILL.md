@@ -8,7 +8,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 > 本文是**总览 + 意图路由**：按意图找到入口，再按渐进层级下钻细节。
 > 细节唯一权威源：原语在 `primitives/`，机制在 `interaction-skills/`，站点在 domain-skills，应用在 workspace apps。
 
-**两层 API，一个守护进程**：协议层 652 方法带类型直调（`session.Page.navigate(...)`，无封装遮蔽）+ 语义层 snake_case 助手（`goto_url` / `js` / `click_at_xy` / `wait_for_render`，预注入裸全局名）。`bh` CLI 首次使用自动拉起长驻 daemon（Node ≥22，零运行时依赖），附着**用户自己打开的浏览器**（永不 spawn，专属 tab 铁律，人机共存）。D19 初始化原语：使用前判系统环境（Node 版本闸），daemon（重）生时幂等带起看板与 rmux 守护（fire-and-forget，不动既有附着）。
+**两层 API，一个守护进程**：协议层 652 方法带类型直调（`session.Page.navigate(...)`，无封装遮蔽）+ 语义层 snake_case 助手（`goto_url` / `js` / `click_at_xy` / `wait_for_render`，预注入裸全局名）。`bh` CLI 首次使用自动拉起长驻 daemon（Node ≥22，零运行时依赖），附着**用户自己打开的浏览器**（永不 spawn，专属 tab 铁律，人机共存）。初始化：使用前判系统环境（Node 版本闸），daemon（重）生时幂等带起看板、rmux 守护、page-detect watch、supervisor-core（fire-and-forget，不动既有附着）。page-detect 使用独立实例，首次会多弹一次 Chrome Allow。
 
 ## 意图路由（想做什么 -> 用什么）
 
@@ -16,7 +16,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | --- | --- | --- |
 | 打开/操作某网站 | `bh '<js>'` + `goto_url` / `new_tab` / `switch_tab` | `primitives/attach.md`；该站的 domain-skill（见站点索引） |
 | 看现在能操作哪些网页 | `bh sessions`；看板 `bh dashboard` | `primitives/observability.md` |
-| 搜东西 | `bh google-search <q> --top N`（两步契约）`/ bing-search` | `primitives/search.md` |
+| 搜东西 | `bh google-search <q> --top N` / `bh bing-search <q> --top N`（两步契约） | `primitives/search.md` |
 | 抓取并分析某页内容 | `bh web-fetch <url>`（HTTP 优先三条件升级浏览器） | `primitives/fetch-analyze.md` |
 | 页面打不开/登不上/空白 | `bh page-detect [url片段]`（七判 + 证据 + 建议） | `primitives/detect.md` |
 | 迁移登录态 | `bh cookie-io export\|import` | 应用层 |
@@ -25,7 +25,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | 诊断环境 | `bh doctor [--json]` | `primitives/observability.md` |
 | 录制与视频 | `bh record …` / `bh video init/export` | 本文「录制与视频」节 |
 
-**硬边界（程序级强制）**：只关自己开的 tab；绝不关用户 tab、绝不关闭/重塑附着的浏览器。守卫在 Session 调用层，`session.domains.Browser.close()` 也被拦。
+**硬边界（程序级强制）**：只关自己开的 tab；绝不关用户 tab、绝不关闭/重塑附着的浏览器。守卫在 Session 调用层，`session.domains.Browser.close()` 也被拦。看板 `http://127.0.0.1:9870` 不是工作 tab：default 与应用禁止 attachFirstPage / goto_url / switch_tab / new_tab 附着它；请在 Chrome 里自己打开看板。
 
 ## 渐进层级（按需下钻，不必通读）
 
@@ -59,13 +59,13 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 - `bh web-fetch <url>`：HTTP 优先，空/墙词/正文<20 词三条件升级浏览器
 - `bh google-search <q> [--top N]`：两步契约（指标落盘，`pluck gs_search` 取数）；CAPTCHA 如实报
 - `bh medium-search <q> [--top N] | grab <url> [--out F] | pluck [ms_search|ms_article] | ready`：medium 站内搜索与文章抓取（两步契约 cache `ms_search`/`ms_article`；正文走 DOM 提取，因 CF 对页内 `?format=json` 连续请求挂起；遇墙 CAPTCHA|WALL 如实报 exit 2）
-- `bh bing-search <q>`：浏览器搜索 + 拦截检测
+- `bh bing-search <q> [--top N] [--page N]`：两步契约（指标落盘，`pluck bs_search` 取数）；CAPTCHA 如实报不重试；`--limit` 等同 `--top`
 - `bh page-detect [url片段]`：页面诊断七判 + 事件证据 + 建议
 - `bh page-detect watch [--interval S] | unwatch | status`：通用页面守护（D18）：常驻只读探测附着浏览器全部 http(s) 页面，墙类边沿（含白屏持久化、资源被 CF 阻断）自动告警，通知经看板已授权源弹出；状态落 data/page-watch.json
 - `bh cookie-io export|import`：CDP 存取，默认拒绝全量导出（--domain/--all）
 - `bh x-intel [start|stop]`：X 监控（附着浏览器 + rmux 自愈监督 + SQLite 去重库；关浏览器即暂停，只重拉 worker）
-- `bh x-intel search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器
-- `bh x-intel harvest <q> --from --to`：时间分片全量收割
+- `bh x-intel search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器；JSON `{_ok,_v,_ts,count,items}`（`--csv` 仍出 CSV）
+- `bh x-intel harvest <q> --from --to`：时间分片全量收割；完成打指标 `{_ok,inserted,slices,db}`
 
 **插件契约**：`apps/<name>.mjs` 导出 `main(argv, ctx)` 返回退出码；ctx 注入 `{helpers, browserHelpers}`；`browser_helpers.mjs` 命名导出按名覆盖内置。开发标准见 repo 的 G002/R002。
 
