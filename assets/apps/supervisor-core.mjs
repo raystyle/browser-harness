@@ -1,11 +1,10 @@
 /**
- * supervisor-core — the generic guardian supervisor (D21).
- *
- * One unified registry of resident apps. Every beat it checks, for each entry,
- * the rmux session liveness and a heartbeat file's age; anything dead or stale
- * is killed and restarted. It publishes the G002 status contract for the
- * dashboard 应用监控信息 card and writes supervision actions to the log rail
- * (应用实时事件).
+ * supervisor-core — generic guardian for resident apps that do not own a
+ * supervisor. Every beat: session gone → spawn; heartbeat past timeout →
+ * kill+spawn. A missing heartbeat is not stale while the session is alive
+ * (cold start / first sweep) or within SPAWN_GRACE of a restart we issued.
+ * `data/<name>.status.json` state `stopped` is honored — unwatch stays stopped.
+ * x-intel keeps its own supervisor; listing its worker here raced kill+spawn.
  */
 
 import { appendFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -18,11 +17,13 @@ export const resident = true;
 
 const bhHome = () => process.env.BH_HOME
   ?? process.env.BROWSER_HARNESS_HOME
-  ?? path.join(homedir(), '.config', 'browser-harness');
+  ?? (process.env.XDG_CONFIG_HOME
+    ? path.join(process.env.XDG_CONFIG_HOME, 'browser-harness')
+    : path.join(homedir(), '.config', 'browser-harness'));
 const dataDir = () => process.env.BH_DATA_DIR ?? path.join(bhHome(), 'data');
-const workspaceDir = () => process.env.BH_BROWSER_WORKSPACE ?? path.join(bhHome(), 'browser-workspace');
 
 const CHECK_INTERVAL = Number(process.env.SUPERVISOR_CHECK_INTERVAL ?? 15);
+const SPAWN_GRACE = Number(process.env.SUPERVISOR_SPAWN_GRACE ?? 30);
 const STATUS_FILE = () => path.join(dataDir(), 'supervisor-core.status.json');
 const LOG_FILE = () => path.join(dataDir(), 'supervisor-core.log');
 
@@ -48,6 +49,15 @@ function writeStatus(st) {
 function heartbeatAge(file) {
   try {
     return (Date.now() - statSync(path.join(dataDir(), file)).mtimeMs) / 1000;
+  } catch {
+    return null;
+  }
+}
+
+/** G002 status `state` for a supervised app; null if the file is absent. */
+function appStatusState(name) {
+  try {
+    return JSON.parse(readFileSync(path.join(dataDir(), `${name}.status.json`), 'utf8')).state ?? null;
   } catch {
     return null;
   }
@@ -84,14 +94,6 @@ const SUPERVISED = [
       return `"${process.execPath}" "${cli}" --name page-detect page-detect watch --watch-loop --interval 10`;
     },
   },
-  {
-    name: 'x-intel',
-    session: 'x-monitor',
-    heartbeat: 'x_worker.heartbeat',
-    timeout: 120,
-    onDemand: true,
-    command: () => `"${process.execPath}" "${path.join(workspaceDir(), 'apps', 'x-intel.mjs')}" worker`,
-  },
 ];
 
 export async function main(argv = [], ctx) {
@@ -100,27 +102,36 @@ export async function main(argv = [], ctx) {
   const { Rmux } = await importDist('rmux.js');
   const rmux = new Rmux();
   const state = Object.fromEntries(SUPERVISED.map(e => [e.name, '未知']));
+  const lastSpawn = new Map();
 
   logLine(`启动（每 ${CHECK_INTERVAL}s 检查 ${SUPERVISED.length} 个常驻应用）`);
   for (;;) {
     const actions = [];
     try {
       for (const e of SUPERVISED) {
+        if (appStatusState(e.name) === 'stopped') {
+          state[e.name] = '已停止';
+          continue;
+        }
         const alive = await rmux.hasSession(e.session).catch(() => false);
         if (e.onDemand && !alive) {
-          // On-demand apps are only supervised while running; a stopped
-          // x-intel must not be auto-started by the guardian.
           state[e.name] = '未运行';
           continue;
         }
         const age = heartbeatAge(e.heartbeat);
-        const stale = age === null || age > e.timeout;
-        if (!alive || stale) {
+        const spawnedAt = lastSpawn.get(e.name) ?? 0;
+        const inGrace = spawnedAt > 0 && (Date.now() - spawnedAt) < SPAWN_GRACE * 1000;
+        const sessionDead = !alive;
+        const heartbeatStale = alive && age !== null && age > e.timeout;
+        const hungWithoutBeat = alive && age === null && spawnedAt > 0 && !inGrace
+          && (Date.now() - spawnedAt) > e.timeout * 1000;
+        if (sessionDead || heartbeatStale || hungWithoutBeat) {
           state[e.name] = '重启中';
           actions.push(e.name);
           if (alive) await rmux.killSession(e.session).catch(() => {});
           await sleep(1);
           await rmux.ensureSession(e.session, { command: e.command(), readyTimeout: 15 }).catch(() => {});
+          lastSpawn.set(e.name, Date.now());
           state[e.name] = '已重启';
           logLine(`重启 ${e.name}（session:${alive ? '失' : '缺'}, heartbeat:${age === null ? '缺' : Math.round(age) + 's'}）`);
         } else {

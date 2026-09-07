@@ -64,7 +64,7 @@ export class Session implements Transport {
    * Fired when a Target.createTarget sent through THIS transport succeeds.
    * Symmetric with callGuard (same layer): ownership registration must see
    * every creation path — helpers via harness.cdp, raw session.domains evals,
-   * library users — not just one dispatcher (issue #1).
+   * library users — not just one dispatcher.
    */
   onCreateTarget?: (targetId: string) => void;
 

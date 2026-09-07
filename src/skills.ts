@@ -147,6 +147,7 @@ const PAYLOAD_EXT = ['.md', '.mjs', '.py', '.js']; // .js = built page-resident 
 const RETIRED_WORKSPACE_FILES: string[] = [
   'browser_watch.py', 'browser_wizard.py', 'page_text.py', 'start-x-monitor.ps1',
   'x_monitor.py', 'x_search.py', 'x_supervisor.py', 'x_worker.py',
+  'apps/x-core', 'apps/x-core.mjs',
 ];
 
 export function provisionWorkspace(workspaceDir: string, dryRun = false): { copied: string[]; retired: string[] } {
@@ -198,7 +199,7 @@ export function provisionWorkspace(workspaceDir: string, dryRun = false): { copi
   for (const f of RETIRED_WORKSPACE_FILES) {
     const p = path.join(workspaceDir, f);
     if (existsSync(p)) {
-      if (!dryRun) rmSync(p, { force: true });
+      if (!dryRun) rmSync(p, { force: true, recursive: true });
       retired.push(f);
     }
   }

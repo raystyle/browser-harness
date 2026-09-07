@@ -51,3 +51,20 @@ export interface Host {
 /** Horse marker: U+1F434 is a surrogate pair (2 UTF-16 units) + space = 3. */
 export const MARKER = '\u{1F434}';
 export const MARKER_PREFIX = '\u{1F434} '; // length 3 in UTF-16 code units
+
+/** The web board is a read-only control plane — never a work tab. */
+export function dashboardPort(): string {
+  return process.env.BH_DASHBOARD_PORT ?? '9870';
+}
+
+export function isDashboardUrl(url: string): boolean {
+  const port = dashboardPort();
+  const u = String(url ?? '');
+  return u.startsWith(`http://127.0.0.1:${port}`)
+    || u.startsWith(`http://localhost:${port}`)
+    || u.startsWith(`http://[::1]:${port}`);
+}
+
+export function dashboardForbiddenMsg(): string {
+  return `bh: 看板 http://127.0.0.1:${dashboardPort()} 不是工作 tab，default 与应用禁止附着；请在 Chrome 里自己打开看板`;
+}

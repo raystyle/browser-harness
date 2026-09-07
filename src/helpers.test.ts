@@ -132,6 +132,30 @@ describe('tab lifecycle', () => {
     assert.deepEqual(create!.params, { url: 'about:blank', background: true });
   });
 
+  test('goto_url hops off the dashboard instead of navigating it away', async () => {
+    const { host, calls, setTabInfo } = fakeHost({
+      'Target.createTarget': () => ({ targetId: 'TWORK' }),
+      'Target.attachToTarget': () => ({ sessionId: 's2' }),
+      'Target.getTargets': () => ({ targetInfos: [{ targetId: 'TWORK', type: 'page', url: 'about:blank' }] }),
+      'Page.navigate': () => ({ frameId: 'f' }),
+    });
+    setTabInfo({ targetId: 'TDASH', url: 'http://127.0.0.1:9870/', title: 'bh 看板' });
+    await createHelpers(host).goto_url('https://example.com/');
+    assert.ok(calls.some(c => c.method === 'Target.createTarget' && c.params.background === true));
+    assert.ok(calls.some(c => c.method === 'Page.navigate' && c.params.url === 'https://example.com/'));
+  });
+
+  test('goto_url / new_tab / switch_tab refuse the dashboard control plane', async () => {
+    const { host } = fakeHost({
+      'Target.getTargets': () => ({ targetInfos: [{ targetId: 'TDASH', type: 'page', url: 'http://127.0.0.1:9870/', title: 'bh 看板' }] }),
+      'Target.attachToTarget': () => ({ sessionId: 's2' }),
+    });
+    const h = createHelpers(host);
+    await assert.rejects(() => h.goto_url('http://127.0.0.1:9870/'), /不是工作 tab/);
+    await assert.rejects(() => h.new_tab('http://127.0.0.1:9870/'), /不是工作 tab/);
+    await assert.rejects(() => h.switch_tab('TDASH'), /不是工作 tab/);
+  });
+
   test('switch_tab unmarks the old page, attaches, then re-marks the new one', async () => {
     const { host, calls } = fakeHost({ 'Target.attachToTarget': () => ({ sessionId: 's2' }) });
     await createHelpers(host).switch_tab('T9');

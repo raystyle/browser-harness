@@ -178,7 +178,7 @@ async function readStdin(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  // D19 system-environment check: bh needs the built-in WebSocket client.
+  // bh needs the built-in WebSocket client.
   const nodeMajor = Number((process.versions.node.split('.')[0] ?? '0'));
   if (!(nodeMajor >= 22)) die(`Node >= 22 required (found ${process.versions.node}) — bh relies on Node's built-in WebSocket client`);
   // `--name <instance>` — set the bh instance identity BEFORE anything derives
@@ -199,7 +199,7 @@ async function main(): Promise<void> {
 }
 
 /**
- * D17: one app-run record appended to <BH_HOME>/data/app-runs.jsonl — the
+ * One app-run record appended to <BH_HOME>/data/app-runs.jsonl — the
  * platform-level run ledger every app gets for free (no app changes). File
  * rotates at ~2MB keeping the tail. Telemetry must never break the run.
  */
@@ -241,7 +241,7 @@ async function runPlugin(name: string, args: string[]): Promise<void> {
   const host = remoteHost(Number(PORT));
   const helpers = createHelpers(host);
   const browserHelpers = createBrowserHelpers(helpers as any);
-  // D17: tee stderr so the run ledger keeps the app's own log lines.
+  // tee stderr so the run ledger keeps the app's own log lines.
   const log: string[] = [];
   const origWrite = process.stderr.write.bind(process.stderr);
   (process.stderr.write as any) = (chunk: any, ...rest: any[]) => {

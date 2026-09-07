@@ -163,7 +163,7 @@ export class Rmux {
     await this.run(['kill-server']);
   }
 
-  /** D19 init primitive: bring the label's session daemon up (no-op if running). */
+  /** Bring the label's session daemon up (no-op if running). */
   startServer(): boolean {
     if (!this.bin) return false;
     this.spawnDetached(['start-server']);

@@ -14,7 +14,11 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
-const bhHome = () => process.env.BH_HOME ?? (process.env.XDG_CONFIG_HOME ? process.env.XDG_CONFIG_HOME + '/browser-harness' : homedir() + '/.config/browser-harness');
+const bhHome = () => process.env.BH_HOME
+  ?? process.env.BROWSER_HARNESS_HOME
+  ?? (process.env.XDG_CONFIG_HOME
+    ? path.join(process.env.XDG_CONFIG_HOME, 'browser-harness')
+    : path.join(homedir(), '.config', 'browser-harness'));
 
 const CACHE_DIR = process.env.BH_BROWSER_WORKSPACE
   ? path.join(process.env.BH_BROWSER_WORKSPACE, 'cache', 'google')

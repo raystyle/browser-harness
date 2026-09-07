@@ -11,7 +11,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readInstanceRecord, instanceName, derivedPort, logFile, homeDir, runtimeDir, DEFAULT_NAME, workspaceDir } from './paths.js';
+import { readInstanceRecord, instanceName, derivedPort, logFile, homeDir, runtimeDir, DEFAULT_NAME, workspaceDir, dataDir } from './paths.js';
 import { isDevCheckout } from './paths.js';
 import { detectBrowsers, getBrowserCandidates } from './session.js';
 
@@ -291,14 +291,13 @@ function logTail(name: string, lines = 5): string {
  * Idempotent: bring the REPL instance for the current BH_NAME up, confirming
  * real CDP readiness (a daemon whose WebSocket died still answers /health).
  * Errors are classified from the log tail and phrased as agent instructions.
+ * After the daemon is (re)born, fire-and-forget companions (dashboard, rmux,
+ * page-detect watch, supervisor-core). Companions come up even when the
+ * daemon is only HTTP-alive (waiting on Allow) — showing that state is the
+ * dashboard's job. page-detect watch uses a named daemon and prompts a second
+ * Chrome Allow on first use.
  */
 export async function ensureDaemon(): Promise<void> {
-  // D19 init primitive: once the daemon is (re)born, bring up the rest of the
-  // default stack — read-only dashboard + rmux session daemon. Fire-and-forget:
-  // companions are idempotent and a missing rmux / taken port never fails us.
-  // Attachment-stability rule: companions never touch the browser, and they
-  // come up even when the daemon is only HTTP-alive (e.g. still waiting on the
-  // browser's "Allow" prompt) — showing that state IS the dashboard's job.
   try {
     await ensureDaemonCore();
   } catch (e) {
@@ -308,12 +307,40 @@ export async function ensureDaemon(): Promise<void> {
   void ensureCompanions();
 }
 
+function companionStopped(name: string): boolean {
+  try {
+    const st = JSON.parse(readFileSync(path.join(dataDir(), `${name}.status.json`), 'utf8'));
+    return st.state === 'stopped';
+  } catch {
+    return false;
+  }
+}
+
+function supervisorEntry(): string {
+  const ws = path.join(workspaceDir(), 'apps', 'supervisor-core.mjs');
+  if (existsSync(ws)) return ws;
+  return path.join(path.dirname(DIST_DIR), 'assets', 'apps', 'supervisor-core.mjs');
+}
+
 async function ensureCompanions(): Promise<void> {
-  // Companions (dashboard / rmux daemon / page-detect guardian) are global
-  // singletons owned by the DEFAULT stack. Named daemons (page-detect watch
-  // loop, x-intel) also pass through ensureDaemon — they must not recursively
-  // re-spawn these companions.
+  // Companions are global singletons owned by the DEFAULT stack. Named daemons
+  // (page-detect watch loop, x-intel) also pass through ensureDaemon — they
+  // must not recursively re-spawn these companions.
   if (instanceName() !== DEFAULT_NAME) return;
+  const wsApps = path.join(workspaceDir(), 'apps');
+  const pdPath = path.join(wsApps, 'page-detect.mjs');
+  const needProvision = !existsSync(pdPath)
+    || !existsSync(path.join(wsApps, 'supervisor-core.mjs'))
+    || !existsSync(path.join(wsApps, 'x-intel.mjs'))
+    || existsSync(path.join(wsApps, 'x-core.mjs'))
+    || existsSync(path.join(wsApps, 'x-core'))
+    || (existsSync(pdPath) && !readFileSync(pdPath, 'utf8').includes("sub === 'watch'"));
+  if (needProvision) {
+    try {
+      const { provisionWorkspace } = await import('./skills.js');
+      provisionWorkspace(workspaceDir());
+    } catch { /* spawn path below still tries */ }
+  }
   let rmux: any;
   try {
     const { ensureDashboard } = await import('./dashboard.js');
@@ -326,18 +353,28 @@ async function ensureCompanions(): Promise<void> {
     rmux = new Rmux();
     if (rmux.version() && !(await rmux.daemonAlive())) rmux.startServer();
   } catch { /* best-effort */ }
-  // D20: page-detect is an init primitive — its watch loop runs in an rmux
-  // session and is idempotent (ensureSession is a no-op when already up).
   try {
     if (rmux && rmux.version()) {
-      await rmux.ensureSession('page-detect', {
-        command: `"${process.execPath}" "${path.join(DIST_DIR, 'cli.js')}" --name page-detect page-detect watch --watch-loop --interval 10`,
-        readyTimeout: 10,
-      });
-      await rmux.ensureSession('supervisor-core', {
-        command: `"${process.execPath}" "${path.join(workspaceDir(), 'apps', 'supervisor-core.mjs')}"`,
-        readyTimeout: 10,
-      });
+      const pd = path.join(workspaceDir(), 'apps', 'page-detect.mjs');
+      if (!existsSync(pd)) {
+        process.stderr.write('bh: companion page-detect missing from workspace — run `bh skill sync`\n');
+      } else if (!readFileSync(pd, 'utf8').includes("sub === 'watch'")) {
+        process.stderr.write('bh: companion page-detect has no watch subcommand — run `bh skill sync`\n');
+      } else if (!companionStopped('page-detect')) {
+        await rmux.ensureSession('page-detect', {
+          command: `"${process.execPath}" "${path.join(DIST_DIR, 'cli.js')}" --name page-detect page-detect watch --watch-loop --interval 10`,
+          readyTimeout: 10,
+        });
+      }
+      const supervisor = supervisorEntry();
+      if (!existsSync(supervisor)) {
+        process.stderr.write('bh: companion supervisor-core missing — run `bh skill sync`\n');
+      } else {
+        await rmux.ensureSession('supervisor-core', {
+          command: `"${process.execPath}" "${supervisor}"`,
+          readyTimeout: 10,
+        });
+      }
     }
   } catch { /* best-effort */ }
 }

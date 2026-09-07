@@ -4,7 +4,7 @@
  * This module must only import ./host.js and ./env.js (never harness.js).
  */
 
-import { MARKER, MARKER_PREFIX, type CdpEvent, type Host } from './host.js';
+import { MARKER, MARKER_PREFIX, isDashboardUrl, dashboardForbiddenMsg, type CdpEvent, type Host } from './host.js';
 import { envNumber } from './env.js';
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
@@ -181,6 +181,8 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
   }
 
   async function gotoUrlInner(url: string, opts: { timeout?: number } = {}): Promise<Record<string, unknown>> {
+    if (isDashboardUrl(url)) throw new Error(dashboardForbiddenMsg());
+    await leaveDashboardIfAttached();
     const navTimeout = (opts.timeout ?? envNumber('BH_NAVIGATE_TIMEOUT', 30)) * 1000;
     let r: Record<string, unknown>;
     try {
@@ -399,6 +401,26 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
     return { targetId: info.targetId, target_id: info.targetId, url: info.url, title: info.title };
   }
 
+  async function tabUrl(tid: string): Promise<string> {
+    const r = await cdp('Target.getTargets', {});
+    const t = (r.targetInfos ?? []).find((x: { targetId?: string; url?: string }) => x.targetId === tid);
+    return String(t?.url ?? '');
+  }
+
+  async function refuseDashboardTarget(tid: string): Promise<void> {
+    if (isDashboardUrl(await tabUrl(tid))) throw new Error(dashboardForbiddenMsg());
+  }
+
+  /** If we landed on the board, hop to a fresh work tab — never navigate the board away. */
+  async function leaveDashboardIfAttached(): Promise<void> {
+    try {
+      const cur = await current_tab();
+      if (!isDashboardUrl(cur.url)) return;
+    } catch { return; }
+    const r = await cdp('Target.createTarget', { url: 'about:blank', background: true });
+    await switch_tab(r.targetId);
+  }
+
   function _target_id(target: string | Tab): string {
     if (typeof target === 'string') return target;
     return target.targetId || target.target_id;
@@ -413,6 +435,7 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
   async function switch_tab(target: string | Tab, activate = false): Promise<string> {
     return withTrace('switch_tab', [target], async () => {
       const tid = _target_id(target);
+      await refuseDashboardTarget(tid);
       // Unmark the old tab. The horse emoji is a surrogate pair (2 UTF-16
       // units) + space = 3, so slice(3) removes the prefix cleanly.
       await cdp('Runtime.evaluate', { expression: `if(document.title.startsWith('${MARKER_PREFIX}'))document.title=document.title.slice(3)` }).catch(() => {});
@@ -426,6 +449,7 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
 
   async function new_tab(url = 'about:blank'): Promise<string> {
     return withTrace('new_tab', [url], async () => {
+      if (isDashboardUrl(url)) throw new Error(dashboardForbiddenMsg());
       // Always create blank, THEN goto: passing url to createTarget races with
       // attach — the brief about:blank reads "complete" before navigation
       // starts, so wait_for_load returns a false finish.
@@ -433,13 +457,15 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
         try {
           const cur = await current_tab();
           const curUrl = cur.url ?? '';
-          if (curUrl === '' || curUrl === 'about:blank' || curUrl === 'data:text/html,'
+          if (!isDashboardUrl(curUrl) && (curUrl === '' || curUrl === 'about:blank' || curUrl === 'data:text/html,'
             || curUrl.startsWith('about:blank#') || curUrl.startsWith('chrome://newtab')
-            || curUrl.startsWith('chrome://new-tab-page') || curUrl.startsWith('edge://newtab') || curUrl.startsWith('about:newtab')) {
+            || curUrl.startsWith('chrome://new-tab-page') || curUrl.startsWith('edge://newtab') || curUrl.startsWith('about:newtab'))) {
             await goto_url(url);
             return cur.targetId;
           }
-        } catch { /* not attached yet */ }
+        } catch (e: any) {
+          if (String(e?.message ?? e).includes('不是工作 tab')) throw e;
+        }
       }
       const r = await cdp('Target.createTarget', { url: 'about:blank', background: true });
       await switch_tab(r.targetId);
@@ -456,11 +482,11 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
   }
 
   async function ensure_real_tab(): Promise<Tab | null> {
-    const tabs = await list_tabs(false);
+    const tabs = (await list_tabs(false)).filter(t => !isDashboardUrl(t.url));
     if (tabs.length === 0) return null;
     try {
       const cur = await current_tab();
-      if (cur.url && !INTERNAL.some(p => cur.url.startsWith(p))) return cur;
+      if (cur.url && !isDashboardUrl(cur.url) && !INTERNAL.some(p => cur.url.startsWith(p))) return cur;
     } catch { /* fall through to switch */ }
     await switch_tab(tabs[0]!);
     return tabs[0]!;

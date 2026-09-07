@@ -12,7 +12,7 @@
  */
 
 import { tmpDir as bhTmpDir, workspaceDir, instanceName } from './paths.js';
-import { MARKER, MARKER_PREFIX, type CdpEvent, type SeqEvent, type Host } from './host.js';
+import { MARKER, MARKER_PREFIX, isDashboardUrl, type CdpEvent, type SeqEvent, type Host } from './host.js';
 import { Session, detectBrowsers, getBrowserCandidates } from './session.js';
 import { clamp, envNumber } from './env.js';
 
@@ -48,10 +48,9 @@ export class Harness {
     // bypass it either.
     session.installCallGuard((method, params) => this.guardBrowserLifetime(method, params));
     session.onEvent((method, params, sessionId) => this.onEvent({ method, params, sessionId }));
-    // Tab ownership rides the transport, mirroring the callGuard above: every
-    // Target.createTarget reply — whichever path issued it — joins the
-    // closeable set. (issue #1: --new-tab's raw session.domains call used to
-    // bypass the dispatcher-level registration and its tab became uncloseable.)
+    // Tab ownership rides the transport, mirroring the callGuard: every
+    // Target.createTarget reply joins the closeable set, including raw
+    // session.domains evals that never pass the dispatcher.
     session.onCreateTarget = (tid) => { this.ownedTargets.add(tid); };
     // Browser-level death watch: a closed WS means the user's browser went
     // down — keep trying to re-attach (the toggle channel survives browser
@@ -193,8 +192,7 @@ export class Harness {
 
   /** The web board is a read-only control plane — never an agent work surface. */
   private isControlPlane(url: string): boolean {
-    const port = process.env.BH_DASHBOARD_PORT ?? '9870';
-    return url.startsWith(`http://127.0.0.1:${port}`) || url.startsWith(`http://localhost:${port}`);
+    return isDashboardUrl(url);
   }
 
   /**
@@ -231,7 +229,7 @@ export class Harness {
   /**
    * Target.targetInfoChanged only flows after Target.setDiscoverTargets —
    * without this call the marker-title ownership branch in onEvent is dead
-   * code (issue #1). One call per browser-level connection, best-effort.
+   * code. One call per browser-level connection, best-effort.
    */
   private async enableTargetDiscovery(): Promise<void> {
     if (this.discoveryOn) return;

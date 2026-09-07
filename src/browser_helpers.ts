@@ -5,6 +5,7 @@
  */
 
 import type { Helpers } from './helpers.js';
+import { isDashboardUrl } from './host.js';
 
 const BLOCK_WORDS = [
   'just a moment', 'attention required', 'verify you are human', 'access denied',
@@ -35,6 +36,7 @@ export function createBrowserHelpers(h: Helpers) {
     const host = new URL(url).hostname;
     const tabs = await h.list_tabs(true);
     const existing = tabs.find(t => {
+      if (isDashboardUrl(t.url)) return false;
       try { return new URL(t.url).hostname === host || new URL(t.url).hostname.endsWith(`.${host}`); } catch { return false; }
     });
     if (existing) {

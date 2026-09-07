@@ -315,7 +315,9 @@ async function main() {
           { label: '库存', value: `${r.total} 帖` },
           { label: '库内时间线', value: `${zh(r.earliest)} 至 ${zh(r.latest)}` },
         ],
-        event: { ts: new Date().toISOString(), text: `新入库 ${r.inserted} · 共 ${r.total} 帖` },
+        event: r.inserted > 0
+          ? { ts: new Date().toISOString(), text: `新入库 ${r.inserted} · 共 ${r.total} 帖` }
+          : undefined,
       });
       ok = true;
       lastRoundAt = Date.now();

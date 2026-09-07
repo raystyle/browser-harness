@@ -176,6 +176,27 @@ describe('dedicated-tab attach policy (D11 coexistence iron rule)', () => {
     assert.deepEqual(create!.params, { url: 'about:blank', background: true });
   });
 
+  test('never attaches to the dashboard control plane — prefers blank, else creates', async () => {
+    const { harness, sent } = withPages([
+      { targetId: 'TDASH', url: 'http://127.0.0.1:9870/', title: 'bh 看板' },
+      { targetId: 'TUSER', url: 'https://user-is-reading.example/', title: 'User Page' },
+      { targetId: 'TBLANK', url: 'about:blank', title: '' },
+    ]);
+    const r = await (harness as any).attachFirstPage();
+    assert.equal(r.targetId, 'TBLANK');
+    assert.equal(sent.some(m => m.method === 'Target.createTarget'), false);
+  });
+
+  test('dashboard-only browser still does not steal it — creates a background blank', async () => {
+    const { harness, sent } = withPages([
+      { targetId: 'TDASH', url: 'http://127.0.0.1:9870/', title: 'bh 看板' },
+    ]);
+    const r = await (harness as any).attachFirstPage();
+    assert.equal(r.targetId, 'TFRESH');
+    const create = sent.find(m => m.method === 'Target.createTarget');
+    assert.deepEqual(create!.params, { url: 'about:blank', background: true });
+  });
+
   test('blank beats marked: the default instance never steals an app daemon\'s working tab', async () => {
     const { harness, sent } = withPages([
       { targetId: 'TUSER', url: 'https://user-is-reading.example/', title: 'User Page' },

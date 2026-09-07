@@ -35,8 +35,12 @@ export const resident = true; // guardian app: lives in the dashboard 应用监�
 
 const VERSION = '1.1.0';
 
-const bhHome = () => process.env.BH_HOME ?? (process.env.XDG_CONFIG_HOME ? process.env.XDG_CONFIG_HOME + '/browser-harness' : homedir() + '/.config/browser-harness');
-const dataDirOf = () => path.join(bhHome(), 'data');
+const bhHome = () => process.env.BH_HOME
+  ?? process.env.BROWSER_HARNESS_HOME
+  ?? (process.env.XDG_CONFIG_HOME
+    ? path.join(process.env.XDG_CONFIG_HOME, 'browser-harness')
+    : path.join(homedir(), '.config', 'browser-harness'));
+const dataDirOf = () => process.env.BH_DATA_DIR ?? path.join(bhHome(), 'data');
 const STATE_FILE = () => path.join(dataDirOf(), 'page-watch.json');
 const STATUS_FILE = () => path.join(dataDirOf(), 'page-detect.status.json');
 /** Guardian status contract (G002) — same schema x-intel publishes. */
@@ -98,11 +102,11 @@ function classify(p, url) {
   return { verdict: 'ok', advice: '' };
 }
 
-/** Attach -> evaluate one JSON probe; KEEPS the session so the dashboard can
- *  show the instance as attached while the sweep walks the tabs. Caller detaches. */
+/** Attach -> Runtime.enable -> evaluate one JSON probe. Caller detaches. */
 async function probeTab(h, targetId) {
   try {
     const r = await h.cdp('Target.attachToTarget', { targetId, flatten: true });
+    await h.cdp('Runtime.enable', {}, { sessionId: r.sessionId }).catch(() => {});
     const out = await h.cdp('Runtime.evaluate', {
       expression: 'JSON.stringify({'
         + 'len: document.body ? document.body.innerText.length : 0, '
@@ -116,7 +120,8 @@ async function probeTab(h, targetId) {
     }, { sessionId: r.sessionId });
     const p = JSON.parse(out?.result?.value || '{}');
     return { sid: r.sessionId, p: { len: p.len || 0, head: p.head || '', title: p.title || '', assets: p.assets || [] } };
-  } catch {
+  } catch (err) {
+    logLine(`[${hms()}] page-detect 探测失败：${String(targetId).slice(0, 24)} ${err?.message ?? err}`);
     return null;
   }
 }
@@ -134,6 +139,9 @@ async function watchLoop(h, intervalSec) {
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
+      // Touch the heartbeat at the start of each sweep so a long tab list
+      // cannot look stale to supervisor-core mid-cycle.
+      saveState(state);
       const dashPort = process.env.BH_DASHBOARD_PORT ?? '9870';
       const isDash = (u) => u.startsWith(`http://127.0.0.1:${dashPort}`) || u.startsWith(`http://localhost:${dashPort}`);
       const tabs = (await h.list_tabs(false)).filter(t => /^https?:/i.test(t.url) && !isDash(t.url));
@@ -161,9 +169,6 @@ async function watchLoop(h, intervalSec) {
         if (c.verdict === 'blank') blankStreak.set(t.targetId, (blankStreak.get(t.targetId) || 0) + 1);
         else blankStreak.delete(t.targetId);
         prev.set(t.targetId, c.verdict);
-        // Hold the attachment for a beat so the dashboard's 1s snapshot can
-        // actually show this tab as "attached" before moving on.
-        await new Promise(r => setTimeout(r, 450));
       }
       if (prevSid) { await h.cdp('Target.detachFromTarget', { sessionId: prevSid }).catch(() => {}); prevSid = null; }
       for (const k of [...prev.keys()]) if (!rows.some(r => r.targetId === k)) { prev.delete(k); blankStreak.delete(k); }
@@ -200,6 +205,7 @@ async function watchLoop(h, intervalSec) {
 const WATCH_SESSION = 'page-detect';
 
 async function watchStart(intervalSec) {
+  writeStatus({ state: 'running', metrics: [{ label: '巡检节奏', value: `${intervalSec} 秒/轮` }] });
   let via = 'detached';
   try {
     const { importDist } = await import('./x-intel/lib.mjs');
@@ -240,6 +246,9 @@ async function watchStart(intervalSec) {
 }
 
 async function watchStop() {
+  // Persist stopped first so a concurrent supervisor beat / ensureCompanions
+  // will not respawn the session we are about to kill.
+  writeStatus({ state: 'stopped', metrics: [], event: undefined });
   let killed = false;
   try {
     const { importDist } = await import('./x-intel/lib.mjs');
@@ -259,7 +268,6 @@ async function watchStop() {
     st.watching = false;
     saveState(st);
   } catch { /* no state yet */ }
-  writeStatus({ state: 'stopped', metrics: [], event: undefined });
   console.log(JSON.stringify({ _ok: true, _v: VERSION, _ts: new Date().toISOString(), watching: false, killed }, null, 1));
   return 0;
 }
