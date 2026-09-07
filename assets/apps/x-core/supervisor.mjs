@@ -8,20 +8,21 @@
  * The supervisor itself never dies: each beat is wrapped, errors are logged
  * and the loop continues. Only 3 rmux commands are ever used.
  *
- * Run by rmux (spawned from x-monitor.mjs); debugging: node x-supervisor.mjs
+ * Run by rmux (spawned from x-core.mjs); debugging: node x-core/supervisor.mjs
  */
 
 import { appendFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { importDist, bhHome } from './x-lib.mjs';
+import { importDist, bhHome, dataDir } from './lib.mjs';
 
 const CHECK_INTERVAL = Number(process.env.X_CHECK_INTERVAL ?? 15);
 const HEARTBEAT_TIMEOUT = Number(process.env.X_HEARTBEAT_TIMEOUT ?? 120);
 const SPAWN_GRACE = Number(process.env.X_SPAWN_GRACE ?? 15);
 const SESSION = process.env.X_RMUX_SESSION ?? 'x-monitor';
 const WORKSPACE = process.env.BH_BROWSER_WORKSPACE ?? path.join(bhHome(), 'browser-workspace');
-const HEARTBEAT = process.env.X_HEARTBEAT ?? path.join(WORKSPACE, 'x_worker.heartbeat');
-const SUPERVISOR_LOG = process.env.X_SUPERVISOR_LOG ?? path.join(WORKSPACE, 'x_supervisor.log');
+const DATA = dataDir();
+const HEARTBEAT = process.env.X_HEARTBEAT ?? path.join(DATA, 'x_worker.heartbeat');
+const SUPERVISOR_LOG = process.env.X_SUPERVISOR_LOG ?? path.join(DATA, 'x_supervisor.log');
 
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
 
@@ -47,10 +48,11 @@ function localPath(u) {
 async function main() {
   const { Rmux } = await importDist('rmux.js');
   const rmux = new Rmux();
-  const workerPath = localPath(new URL('./x-worker.mjs', import.meta.url));
+  // Workers launch through the app entry with a role arg: x-core.mjs worker
+  const entryPath = localPath(new URL('../x-core.mjs', import.meta.url));
 
   async function spawnWorker() {
-    await rmux.ensureSession(SESSION, { command: `"${process.execPath}" "${workerPath}"`, readyTimeout: 20 });
+    await rmux.ensureSession(SESSION, { command: `"${process.execPath}" "${entryPath}" worker`, readyTimeout: 20 });
     alert(`spawned worker session "${SESSION}"`);
     await sleep(SPAWN_GRACE);
   }

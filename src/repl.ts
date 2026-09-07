@@ -210,10 +210,22 @@ server.listen(PORT, '127.0.0.1', () => {
     message: `CDP REPL listening on http://127.0.0.1:${PORT}`,
   }));
   harness.startWatchdog();
-  // Connect + attach in the background: a failure exits with a classified
-  // message so ensureDaemon can parse the log tail and instruct the agent.
-  harness.connect().catch(e => {
-    console.error(`bh: connect failed: ${String(e?.message ?? e)}`);
-    process.exit(1);
-  });
+  // Connect + attach in the background. A failure does NOT exit, and retries
+  // go through the harness backoff (30s doubling to 10min): every WS attempt
+  // pops a fresh "Allow" prompt in Chrome, so hammering retries would
+  // machine-gun the user with dialogs. Readiness is decided by ensureDaemon's
+  // CDP probe, not by process liveness.
+  const tryConnect = async () => {
+    if (!harness.connectPermitted()) { setTimeout(tryConnect, 5_000); return; }
+    try {
+      await harness.connect();
+      harness.noteConnectSuccess();
+      console.log(JSON.stringify({ ok: true, connected: true, name: INSTANCE, port: PORT }));
+    } catch (e: any) {
+      harness.noteConnectFailure();
+      console.error(`bh: connect failed (retrying with backoff): ${String(e?.message ?? e)}`);
+      setTimeout(tryConnect, 5_000);
+    }
+  };
+  void tryConnect();
 });

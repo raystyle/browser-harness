@@ -9,12 +9,17 @@
 
 ## 锚点
 
-- **锚定的目标**：无（D03/D04/D05 收官后空闲，待新需求入 PRD）
+- **锚定的目标**：D11 重构为「附着用户浏览器 + 人机共存」形态（PRD 回指 D11）
+  - 生死门：S001 附着通道可行性研究先行，证伪则告警退出（无兜底形态）
+  - 范围：全量手写源码；移除 spawn 家族（agentChrome 整文件删重写发现机制、taskIsolation 删、x-monitor 随改）
+  - 铁律：专属 tab + 显式授权；空态如实报 + 一次性引导；先补测试网再动结构
 
 ### 推进时间线
 
 | 日期 | 进展 |
 | --- | --- |
+| 2026-09-05 | D11 架构落地：S001 生死门通过（Chrome 144+ 官方 auto-connect 通道 + 本机 PoC 全链路 + 不抢焦点实证）-> 测试网 48 用例全绿 -> 移除 spawn 家族（agentChrome/taskIsolation/locks、bh chrome 与 chrome-mode）-> 附着发现（补 Chrome Dev/Beta、排除 Edge）+ 专属 tab 铁律 + x-monitor 改造 -> 真机附着冒烟（doctor attachable/current_tab 专属 tab/sessions 全景）；文档基线同步 README/SKILL/R001/CHANGELOG |
+| 2026-09-05 | D11 立项：三轮拷问定共识（架构转向、彻底移除 spawn、专属 tab 铁律、用户自开为主、证伪即告警退出）；S001 研究启动 |
 | 2026-09-04 | D10 x-monitor 关闭原语：stop|close 按序拆栈（supervisor -> worker -> 专属 daemon），start 显式化；空态幂等与按序停止均实测 |
 | 2026-09-04 | D09 rmux 探测原语：bh rmux（panes 结构化 list + status 聚合），补齐监督面可观测性；同日完成 Python 版指代更新（browser-harness-py）与首提交推送（CI 六格首跑全绿） |
 | 2026-09-04 | D08 状态探测原语落地：bh sessions（代码事实提炼的对象模型 + 实例清单 + 窗口分组 tab 表 + 附着策略）与 bh --new-tab；首用即发现 2 僵尸注册 + 4 残留 tab 并清理 |
@@ -27,7 +32,7 @@
 
 ## 进程
 
-- 空闲：无锚定目标，新需求先入 PRD
+- D11 进行中：S001 附着通道可行性研究（生死门）先行；研究通过后按 PLAN 六项推进（补测试网 -> 架构落地 -> 移除 spawn -> 铁律与 x-monitor -> 验收归档）
 
 ## 历史
 

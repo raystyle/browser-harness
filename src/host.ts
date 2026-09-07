@@ -9,6 +9,9 @@
  */
 
 export type CdpEvent = { method: string; params: any; sessionId?: string };
+/** Ring-buffer enrichment (invisible to drain consumers): monotonic seq + wall time,
+ *  so dashboards can accumulate peeked events without collapsing duplicates. */
+export type SeqEvent = CdpEvent & { seq: number; t: number };
 
 export interface Host {
   /** One CDP round trip; carries stale-session self-heal and the default 5s budget. */

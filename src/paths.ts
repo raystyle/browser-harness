@@ -47,13 +47,13 @@ export function workspaceDir(): string {
   return ensureDir(path.join(homeDir(), 'browser-workspace'));
 }
 
-export function agentChromeProfileDir(): string {
-  const pinned = process.env.BH_AGENT_CHROME_PROFILE;
+/** Runtime data root (db / logs / recordings / heartbeat): structure lives in
+ *  the workspace, data lives here — D13 hygiene split. */
+export function dataDir(): string {
+  const pinned = process.env.BH_DATA_DIR;
   if (pinned) return path.resolve(pinned);
-  return path.join(homeDir(), 'agent-chrome-profile');
+  return ensureDir(path.join(homeDir(), 'data'));
 }
-
-export function taskProfilesDir(): string { return ensureDir(path.join(homeDir(), 'task-profiles')); }
 
 /**
  * Load .env files with setdefault semantics — the real process environment

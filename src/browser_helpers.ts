@@ -184,7 +184,10 @@ export function createBrowserHelpers(h: Helpers) {
       .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
       .replace(/\s+/g, ' ')
       .trim();
-    return { title, text, word_count: text.split(/\s+/).filter(Boolean).length, engine: 'fallback' };
+    // The horse marker (🐴 + space, a surrogate pair) prefixes titles of tabs
+    // bh operates — it is OUR UI, never part of the page's content.
+    const clean = (s: string) => s.replace(/^\u{1F434} ?/u, '');
+    return { title: clean(title), text: clean(text), word_count: text.split(/\s+/).filter(Boolean).length, engine: 'fallback' };
   }
 
   function looksBlocked(html: string): boolean {

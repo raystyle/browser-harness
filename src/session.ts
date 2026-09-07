@@ -14,6 +14,14 @@ type Pending = {
   reject: (e: unknown) => void;
 };
 
+/**
+ * Optional policy hook: invoked synchronously before every _call send; a
+ * throw aborts the call. The daemon installs one to enforce D11 browser
+ * lifetime rules (never close the user's browser / tabs) at the transport
+ * level — direct session.domains.* calls cannot bypass it.
+ */
+export type CallGuard = (method: string, params: unknown) => void;
+
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 export type ConnectOptions = {
@@ -50,6 +58,12 @@ export class Session implements Transport {
   private pending = new Map<number, Pending>();
   private activeSessionId: string | undefined;
   private eventListeners: Array<(method: string, params: unknown, sessionId?: string) => void> = [];
+  private callGuard?: CallGuard;
+
+  /** Install a policy hook; see CallGuard. Library users leave this unset. */
+  installCallGuard(guard: CallGuard): void {
+    this.callGuard = guard;
+  }
 
   // Generated bindings — one per CDP domain.
   // Initialized lazily after construction so `_call` is available.
@@ -191,6 +205,7 @@ export class Session implements Transport {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       return Promise.reject(new Error('Not connected. Call session.connect(...) first.'));
     }
+    this.callGuard?.(method, params);
     const id = this.nextId++;
     const msg: Record<string, unknown> = { id, method, params: params ?? {} };
     if (this.activeSessionId && !isBrowserLevel(method)) {
@@ -325,8 +340,14 @@ export async function detectBrowsers(): Promise<DetectedBrowser[]> {
 
 type BrowserCandidate = { name: string; profileDir: string };
 
-/** OS-specific user-data dirs for Chromium-based browsers, in rough popularity order. */
-function getBrowserCandidates(): BrowserCandidate[] {
+/**
+ * OS-specific user-data dirs for Chromium-based browsers, in rough popularity
+ * order. Every Google Chrome channel is listed (Stable/Dev/Beta/Canary) — a
+ * Dev-channel daily driver must be discovered too. Microsoft Edge is
+ * deliberately NOT scanned (D11 directive: Edge excluded from attach
+ * discovery; it also burned us in M006's silent fallback).
+ */
+export function getBrowserCandidates(): BrowserCandidate[] {
   const home = process.env.HOME ?? process.env.USERPROFILE ?? '';
   const list: BrowserCandidate[] = [];
   const push = (name: string, profileDir: string) => list.push({ name, profileDir });
@@ -334,33 +355,35 @@ function getBrowserCandidates(): BrowserCandidate[] {
   if (process.platform === 'darwin') {
     const base = `${home}/Library/Application Support`;
     push('Google Chrome',          `${base}/Google/Chrome`);
+    push('Google Chrome Dev',      `${base}/Google/Chrome Dev`);
+    push('Google Chrome Beta',     `${base}/Google/Chrome Beta`);
+    push('Google Chrome Canary',   `${base}/Google/Chrome Canary`);
     push('Chromium',               `${base}/Chromium`);
-    push('Microsoft Edge',         `${base}/Microsoft Edge`);
     push('Brave',                  `${base}/BraveSoftware/Brave-Browser`);
     push('Arc',                    `${base}/Arc/User Data`);
     push('Vivaldi',                `${base}/Vivaldi`);
     push('Opera',                  `${base}/com.operasoftware.Opera`);
     push('Comet',                  `${base}/Comet`);
-    push('Google Chrome Canary',   `${base}/Google/Chrome Canary`);
   } else if (process.platform === 'linux') {
     const cfg = `${home}/.config`;
     push('Google Chrome',          `${cfg}/google-chrome`);
+    push('Google Chrome Dev',      `${cfg}/google-chrome-unstable`);
+    push('Google Chrome Beta',     `${cfg}/google-chrome-beta`);
     push('Chromium',               `${cfg}/chromium`);
-    push('Microsoft Edge',         `${cfg}/microsoft-edge`);
     push('Brave',                  `${cfg}/BraveSoftware/Brave-Browser`);
     push('Vivaldi',                `${cfg}/vivaldi`);
     push('Opera',                  `${cfg}/opera`);
-    push('Google Chrome Canary',   `${cfg}/google-chrome-unstable`);
   } else if (process.platform === 'win32') {
     const local = process.env.LOCALAPPDATA ?? `${home}\\AppData\\Local`;
     push('Google Chrome',          `${local}\\Google\\Chrome\\User Data`);
+    push('Google Chrome Dev',      `${local}\\Google\\Chrome Dev\\User Data`);
+    push('Google Chrome Beta',     `${local}\\Google\\Chrome Beta\\User Data`);
+    push('Google Chrome Canary',   `${local}\\Google\\Chrome SxS\\User Data`);
     push('Chromium',               `${local}\\Chromium\\User Data`);
-    push('Microsoft Edge',         `${local}\\Microsoft\\Edge\\User Data`);
     push('Brave',                  `${local}\\BraveSoftware\\Brave-Browser\\User Data`);
     push('Arc',                    `${local}\\Arc\\User Data`);
     push('Vivaldi',                `${local}\\Vivaldi\\User Data`);
     push('Opera',                  `${local}\\Opera Software\\Opera Stable`);
-    push('Google Chrome Canary',   `${local}\\Google\\Chrome SxS\\User Data`);
   }
   return list;
 }

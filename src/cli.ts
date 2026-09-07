@@ -25,7 +25,6 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { derivedPort, instanceName, logFile } from './paths.js';
-import { applyFromArgv } from './taskIsolation.js';
 import { homeDir } from './paths.js';
 
 // Materialize the resolved BH_HOME into env so spawned daemons and in-process
@@ -179,23 +178,9 @@ async function readStdin(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  // Task isolation MUST run first — it pins BH_NAME/port/profile before
-  // anything derives endpoints from them.
   const argv = process.argv.slice(2);
-  const taskStack = await applyFromArgv(argv);
-  const arg = argv[0] === '--once' || argv[0] === '--batch' ? argv[1] : argv[0];
-
-  try {
-    await dispatch(arg, argv);
-  } finally {
-    if (taskStack) {
-      // Chrome BEFORE daemon (Browser.close needs a live daemon); isolated
-      // tasks stop their browser unconditionally.
-      try { const ac = await import('./agentChrome.js'); await ac.stopAgentChrome(); } catch { /* best-effort */ }
-      await stopRepl().catch(() => {});
-      await taskStack.teardown();
-    }
-  }
+  const arg = argv[0];
+  await dispatch(arg, argv);
 }
 
 /** Load and run a plugin with the runner-injected ctx (remote-host helpers). */
@@ -207,10 +192,15 @@ async function runPlugin(name: string, args: string[]): Promise<void> {
   const { createHelpers } = await import('./helpers.js');
   const { createBrowserHelpers } = await import('./browser_helpers.js');
   const { ensureDaemon } = await import('./admin.js');
-  await ensureDaemon().catch((e: any) => {
-    process.stderr.write(`bh: ${String(e?.message ?? e)}\n`);
-    process.exit(1);
-  });
+  // selfManaged plugins (x-core) bring up and supervise their OWN daemon —
+  // pre-ensuring the DEFAULT daemon here would spawn it and let its
+  // marker-first attach policy steal the app's tab.
+  if (!(plugin as { selfManaged?: boolean }).selfManaged) {
+    await ensureDaemon().catch((e: any) => {
+      process.stderr.write(`bh: ${String(e?.message ?? e)}\n`);
+      process.exit(1);
+    });
+  }
   const host = remoteHost(Number(PORT));
   const helpers = createHelpers(host);
   const browserHelpers = createBrowserHelpers(helpers as any);
@@ -219,12 +209,6 @@ async function runPlugin(name: string, args: string[]): Promise<void> {
 }
 
 async function dispatch(arg: string | undefined, argv: string[]): Promise<void> {
-  if (argv[0] === '--once') {
-    await startRepl();
-    const code = argv[1] ?? await readStdin();
-    await postEval(code);
-    return;
-  }
   if (argv[0] === '--new-tab') {
     // Explicit-new-tab primitive: open about:blank, attach the session to it,
     // then run the snippet there. The tab stays open after. (postEval exits
@@ -245,18 +229,51 @@ async function dispatch(arg: string | undefined, argv: string[]): Promise<void> 
     console.log(JSON.stringify(await new Rmux().status(), null, 1));
     return;
   }
-  if (argv[0] === '--batch') {
-    const src = argv[1] === '-' || argv[1] === undefined ? await readStdin()
-      : await readFile(argv[1]!, 'utf8');
-    await startRepl();
-    let failed = 0;
-    for (const line of src.split(/\r?\n/)) {
-      const code = line.trim();
-      if (!code || code.startsWith('#')) continue;
-      try { await postEval(code); } catch { failed++; }
+  if (argv[0] === 'dashboard') {
+    // Read-only web board (SSE) on 127.0.0.1: instances / attach surface /
+    // rmux supervision / worker heartbeat / page verdicts / event tail.
+    const sub = argv[1] ?? 'start';
+    const { DASHBOARD_PORT } = await import('./dashboard.js');
+    const URLD = `http://127.0.0.1:${DASHBOARD_PORT}`;
+    const alive = async () => {
+      try { const r = await fetch(URLD, { signal: AbortSignal.timeout(1000) }); return r.ok; } catch { return false; }
+    };
+    if (sub === 'stop') {
+      // No /quit endpoint by design (read-only); kill via registry-free port probe is
+      // out of scope — tell the operator the PID instead.
+      const { spawnSync } = await import('node:child_process');
+      const r = spawnSync('powershell', ['-NoProfile', '-Command',
+        `Get-NetTCPConnection -LocalPort ${DASHBOARD_PORT} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess`],
+        { timeout: 8000, windowsHide: true, encoding: 'utf8' });
+      const pid = Number(String(r.stdout ?? '').trim());
+      if (Number.isInteger(pid) && pid > 0) {
+        try { process.kill(pid, 'SIGTERM'); console.log(`dashboard (pid ${pid}) stopped`); } catch { console.log(`dashboard pid ${pid} not killable`); }
+      } else {
+        console.log('dashboard not running');
+      }
+      return;
     }
-    process.exit(failed > 0 ? 1 : 0);
-    return;
+    if (sub === 'status') {
+      console.log(JSON.stringify({ running: await alive(), url: URLD }));
+      return;
+    }
+    // start (idempotent, detached)
+    if (await alive()) { console.log(`dashboard already up: ${URLD}`); return; }
+    const { spawn } = await import('node:child_process');
+    const { openSync, closeSync } = await import('node:fs');
+    const { tmpDir } = await import('./paths.js');
+    const log = openSync(path.join(tmpDir(), 'dashboard.log'), 'w');
+    const child = spawn(process.execPath, [fileURLToPath(new URL('./dashboard.js', import.meta.url))],
+      { detached: true, windowsHide: true, stdio: ['ignore', log, log], env: { ...process.env, BH_HOME: process.env.BH_HOME ?? '' } });
+    child.unref();
+    closeSync(log);
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      await sleep(200);
+      if (await alive()) { console.log(`dashboard up: ${URLD}`); return; }
+    }
+    process.stderr.write(`bh: dashboard did not come up — check ${path.join(tmpDir(), 'dashboard.log')}\n`);
+    process.exit(1);
   }
   switch (arg) {
     case '--status': {
@@ -305,16 +322,6 @@ async function dispatch(arg: string | undefined, argv: string[]): Promise<void> 
         for (const c of r.checks) console.log(`${c.ok ? '  [ok  ]' : '  [FAIL]'} ${c.name} — ${c.detail}`);
       }
       process.exit(r.healthy ? 0 : 1);
-      return;
-    }
-    case 'chrome-mode': {
-      const mode = process.argv[3];
-      if (mode !== 'on' && mode !== 'off' && mode !== 'status') {
-        process.stderr.write('bh: usage: bh chrome-mode on|off|status\n');
-        process.exit(2);
-      }
-      const { runChromeMode } = await import('./admin.js');
-      process.exit(await runChromeMode(mode));
       return;
     }
     case 'skill':
@@ -382,27 +389,6 @@ async function dispatch(arg: string | undefined, argv: string[]): Promise<void> 
       }
       process.stderr.write('bh: usage: bh video init|export|review <recording-dir> [--brief path] [--out path]\n');
       process.exit(2);
-      return;
-    }
-    case 'chrome': {
-      const sub = process.argv[3];
-      const ac = await import('./agentChrome.js');
-      if (sub === 'start') {
-        if (!(await ac.launchAgentChrome())) { process.stderr.write(`bh: agent Chrome failed to start on :${ac.agentPort()}\n`); process.exit(1); }
-        const binName = ac.chromeBinary()?.split(/[\\/]/).pop() ?? 'browser';
-        console.log(`agent chrome up on ${ac.agentCdpUrl()} (${binName})`);
-      } else if (sub === 'stop') {
-        if (!(await ac.stopAgentChrome())) { process.stderr.write('bh: agent Chrome did not stop cleanly\n'); process.exit(1); }
-        console.log('agent chrome stopped');
-      } else if (sub === 'status') {
-        const up = await ac.isAgentChromeRunning();
-        const headless = await ac.agentChromeHeadless();
-        console.log(JSON.stringify({ running: up, headless, cdp: ac.agentCdpUrl(), binary: ac.chromeBinary() }));
-      } else {
-        process.stderr.write('bh: usage: bh chrome start|stop|status\n');
-        process.exit(2);
-      }
-      process.exit(0);
       return;
     }
     case '--help':

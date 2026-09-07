@@ -18,26 +18,24 @@
 | 源码 | `src/remote.ts` | remoteHost：一次性 CLI/插件/worker 进程的 Host 实现（POST /eval） |
 | 源码 | `src/helpers.ts` | 语义层：Host 无关、snake_case、参数序对齐 Python 原版（domain-skills 代码栅栏原样可跑） |
 | 源码 | `src/browser_helpers.ts` | 站点级助手：一 app 一 tab 记账、带墙检测的搜索、可升级浏览器的正文抽取 |
-| 源码 | `src/repl.ts` | REPL：持有一个持久 Session 的 HTTP server |
+| 源码 | `src/repl.ts` | daemon：持久 Session 的 HTTP server（/eval /health /quit；连接失败退避重试不退出） |
 | 源码 | `src/cli.ts` | `bh` CLI：自动拉起 REPL 并转发代码片段 |
-| 源码 | `src/admin.ts` | 管理面：doctor、ensureDaemon、restartDaemon、chrome-mode |
-| 源码 | `src/agentChrome.ts` | agent 专属 Chrome 生命周期：launch/stop/detect，继承老栈 profile |
+| 源码 | `src/dashboard.ts` | 只读网页看板（127.0.0.1:9870，SSE）：实例/附着面/rmux/worker/页面判定/事件尾 |
+| 源码 | `src/admin.ts` | 管理面：doctor（含资产一致性）、ensureDaemon（CDP 就绪判定）、restartDaemon |
 | 源码 | `src/paths.ts` | BH_HOME 路径系统：config/runtime/tmp/workspace/profile 一棵树 |
 | 源码 | `src/env.ts` | 环境变量解析（坏值静默回退，不炸 import） |
-| 源码 | `src/locks.ts` | 单例锁：O_EXCL 建文件 + pid 活性 + 陈旧抢占 |
 | 源码 | `src/skills.ts` | 技能分发三线防漂移：repo payload <-> npm 包 <-> 已部署副本 |
 | 源码 | `src/plugins.ts` | 插件装载：workspace/apps/<name>.mjs 导出 main(args) |
 | 源码 | `src/recorder.ts` | 录制：每 ACTION 一帧（非 screencast 流） |
 | 源码 | `src/video.ts` | 视频管线：帧 -> 编辑梗概 -> 合成 mp4 |
 | 源码 | `src/sqlite.ts` | x_tweets 存储（node:sqlite），DDL 承 Python 原版 |
-| 源码 | `src/taskIsolation.ts` | 任务级浏览器隔离（--once/--batch）：task-<hex8> 实例 + 克隆登录 profile + 内核保留端口 |
 | 源码 | `src/rmux.ts` | rmux CLI 驱动（x-monitor 自愈监督，非官方 SDK） |
-| 源码 | `src/session.test.ts` | 单元测试（node:test） |
+| 源码 | `src/*.test.ts` | 单元测试（node:test，55 用例） |
 | 脚本 | `scripts/gen.ts` | 代码生成：protocol/*.json -> generated.ts |
 | 数据 | `protocol/` | browser_protocol.json + js_protocol.json（上游协议快照） |
 | 技能 | `skill/SKILL.md` | agent 技能入口（装到 ~/.claude/skills/browser/） |
 | 技能 | `skill/interaction-skills/` | 18 篇纯 CDP 交互配方（一文件一机制） |
-| 资产 | `assets/` | domain-skills 97 站知识库等分发资产 |
+| 资产 | `assets/` | domain-skills 94 站知识库 + apps 六应用（web-fetch/google-search/bing-search/cookie-io/page-detect/x-core 全家桶）+ sdk |
 
 ## 三、方案归档（docs/proven/）
 
@@ -50,13 +48,16 @@
 | 日期 | 主题 |
 | --- | --- |
 | 2026-09-04 | 移植与六期补齐收官、文档体系建立 |
+| 2026-09-05 | D11 附着模型转向实战、detect 应用、交互原语定稿 |
+| 2026-09-07 | D12 看板、D13 结构重组、x-core 合一、0.2.0 封板本地安装 |
 
 ## 五、研究文档（docs/research/）
 
 | 编号 | 文件 | 主题 |
 | --- | --- | --- |
+| S001 | `docs/research/S001-用户自开浏览器附着通道可行性.md` | D11 生死门：用户自开浏览器 CDP 附着通道核查与 PoC（已完成，判定可行，discovery 设计输入已成文） |
 
-登记表：`docs/research/README.md`。暂无 S 文档：移植选型已在上游与 Python 主仓完成 [经验: 移植项目无活跃研究场景，research 按需生长]
+登记表：`docs/research/README.md`。S001 为 D11 架构转向的首个研究场景。
 
 ## 六、references 现役流程（docs/references/）
 

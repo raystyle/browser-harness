@@ -11,10 +11,10 @@
  */
 
 import path from 'node:path';
-import { importDist, bhHome } from './x-lib.mjs';
+import { importDist, bhHome, dataDir } from './lib.mjs';
 
 const WORKSPACE = process.env.BH_BROWSER_WORKSPACE ?? path.join(bhHome(), 'browser-workspace');
-const DB_PATH = process.env.X_DB ?? path.join(WORKSPACE, 'x_tweets.db');
+const DB_PATH = process.env.X_DB ?? path.join(dataDir(), 'x_tweets.db');
 
 function sinceToSeconds(raw) {
   const m = /^(\d+)\s*(s|sec|m|min|h|hr|d|w)?$/i.exec(String(raw).trim());

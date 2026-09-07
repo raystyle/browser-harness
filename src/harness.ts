@@ -2,22 +2,38 @@
  * Harness — the daemon semantics, in-process. Wraps the thin Session
  * transport with everything the Python daemon carried: the event ring
  * buffer, dialog capture, the horse marker, stale-session self-heal,
- * first-page attach policy, default-domain enables and the idle watchdog.
+ * dedicated-tab attach policy, default-domain enables and the idle watchdog.
+ *
+ * D11 attach model: we NEVER spawn a browser. The daemon attaches the
+ * browser the USER opened (discovered via DevToolsActivePort files — the
+ * chrome://inspect/#remote-debugging toggle channel) and works only in its
+ * own dedicated tab. Closing the user's browser, or any tab but our own,
+ * is out of bounds.
  */
 
-import { tmpDir as bhTmpDir, workspaceDir, DEFAULT_NAME, instanceName, readInstanceRecord } from './paths.js';
-import { MARKER, MARKER_PREFIX, type CdpEvent, type Host } from './host.js';
-import { Session } from './session.js';
-import { agentChromeHeadless, isAgentChromeRunning, launchAgentChrome, readWsUrl, stopAgentChrome } from './agentChrome.js';
+import { tmpDir as bhTmpDir, workspaceDir, instanceName } from './paths.js';
+import { MARKER, MARKER_PREFIX, type CdpEvent, type SeqEvent, type Host } from './host.js';
+import { Session, detectBrowsers, getBrowserCandidates } from './session.js';
 import { clamp, envNumber } from './env.js';
 
 const BUF_MAX = 500;
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
+/** Attach-empty guidance: the ONE instruction an agent needs to unblock the user. */
+function attachGuidance(scanned: string): string {
+  return [
+    'No attachable browser found (scanned: ' + scanned + ').',
+    'bh attaches the browser YOU open — it never starts one. To enable:',
+    '  1. open your Chrome (144+) as usual,',
+    '  2. visit chrome://inspect/#remote-debugging and enable "Allow remote debugging for this browser instance",',
+    '  3. retry. On the first connection Chrome shows an "Allow remote debugging?" prompt — click Allow.',
+  ].join('\n');
+}
+
 export class Harness {
   readonly session: Session;
-  private buf: CdpEvent[] = [];
+  private buf: SeqEvent[] = [];
   private dialog: { type: string; message: string; url: string } | null = null;
   private attachedTargetId: string | undefined;
   private replacements: Array<{ from: string; to: string; at: number }> = [];
@@ -26,10 +42,16 @@ export class Harness {
 
   constructor(session: Session) {
     this.session = session;
+    // D11 hard rule, enforced at the transport level: bh never closes or
+    // reshapes the user's browser, and only ever closes its OWN tabs. The
+    // guard sits in Session._call so direct session.domains.* evals cannot
+    // bypass it either.
+    session.installCallGuard((method, params) => this.guardBrowserLifetime(method, params));
     session.onEvent((method, params, sessionId) => this.onEvent({ method, params, sessionId }));
-    // Browser-level death watch: a closed WS means Chrome went down — try to
-    // reconnect (relaunching the agent Chrome); if that fails, exit so
-    // ensureDaemon's next round classifies and restarts us with instructions.
+    // Browser-level death watch: a closed WS means the user's browser went
+    // down — keep trying to re-attach (the toggle channel survives browser
+    // restarts); each new WS connection re-prompts Allow, so the user must
+    // be around. Failures are logged, never fatal to the daemon.
     this.wasConnected = false;
     const watcher = setInterval(() => {
       const now = session.isConnected();
@@ -41,18 +63,50 @@ export class Harness {
 
   private wasConnected: boolean;
 
-  private async reconnect(): Promise<void> {
-    this.lastReconnectAttempt ??= 0;
-    if (Date.now() - this.lastReconnectAttempt < 15_000) return; // rate-limit
-    this.lastReconnectAttempt = Date.now();
-    try {
-      await this.connect();
-    } catch (e: any) {
-      console.error(`bh: reconnect failed: ${String(e?.message ?? e)}`);
+  /**
+   * Connect backoff: every WS attempt pops a fresh "Allow" prompt in Chrome
+   * (per-connection permission), so retries must be polite — 30s doubling to
+   * a 10min cap, reset on success. Without this a pending prompt plus a
+   * 15s retry loop machine-guns the user with dialogs.
+   */
+  private backoff = { fails: 0, nextAt: 0 };
+
+  /** Tabs bh may close: created by this daemon, or carrying the horse marker. */
+  private ownedTargets = new Set<string>();
+
+  private guardBrowserLifetime(method: string, params: any): void {
+    if (method === 'Browser.close') {
+      throw new Error('blocked: Browser.close — the attached browser is the user\'s; bh never closes it. Close it yourself in the browser if you want it gone.');
+    }
+    if (method === 'Browser.setWindowBounds') {
+      throw new Error('blocked: Browser.setWindowBounds — bh never reshapes the user\'s browser windows.');
+    }
+    if (method === 'Target.closeTarget') {
+      const tid = String(params?.targetId ?? '');
+      if (!this.ownedTargets.has(tid)) {
+        throw new Error(`blocked: Target.closeTarget on ${tid || '(no targetId)'} — not a bh-owned tab (created or marked by bh). Close user tabs yourself in the browser.`);
+      }
     }
   }
 
-  private lastReconnectAttempt: number | undefined;
+  connectPermitted(): boolean { return Date.now() >= this.backoff.nextAt; }
+  noteConnectFailure(): void {
+    const wait = Math.min(30_000 * 2 ** this.backoff.fails, 600_000);
+    this.backoff.fails++;
+    this.backoff.nextAt = Date.now() + wait;
+  }
+  noteConnectSuccess(): void { this.backoff = { fails: 0, nextAt: 0 }; }
+
+  private async reconnect(): Promise<void> {
+    if (!this.connectPermitted()) return; // backoff decides, not a fixed rate
+    try {
+      await this.connect();
+      this.noteConnectSuccess();
+    } catch (e: any) {
+      this.noteConnectFailure();
+      console.error(`bh: reconnect failed (next attempt in <=${Math.round((this.backoff.nextAt - Date.now()) / 1000)}s): ${String(e?.message ?? e)}`);
+    }
+  }
 
   // -------------------------------------------------------------------------
   // Connection + attach
@@ -60,8 +114,9 @@ export class Harness {
 
   /**
    * Resolve and connect: BH_CDP_WS direct → BH_CDP_URL poll /json/version
-   * (30s; 403 = permission-blocked) → the dedicated agent Chrome (launch if
-   * needed). Then attach the first page per policy.
+   * (30s; 403 = permission-blocked) → discover the user's browser via
+   * DevToolsActivePort files and attach (30s per candidate — the first
+   * connection waits on the Chrome "Allow" prompt). No spawn path exists.
    */
   async connect(): Promise<void> {
     const wsEnv = process.env.BH_CDP_WS;
@@ -71,14 +126,23 @@ export class Harness {
       const ws = await this.pollCdpUrl(process.env.BH_CDP_URL, 30_000);
       await this.session.connect({ wsUrl: ws, timeoutMs: 5_000 });
     } else {
-      if (!(await isAgentChromeRunning())) {
-        if (!(await launchAgentChrome())) {
-          throw new Error('agent Chrome failed to start — run `bh doctor` and `bh chrome start`');
+      const browsers = await detectBrowsers();
+      if (browsers.length === 0) {
+        throw new Error(attachGuidance(getBrowserCandidates().map(c => c.name).join(', ')));
+      }
+      const errors: string[] = [];
+      for (const b of browsers) {
+        try {
+          await this.session.connect({ wsUrl: b.wsUrl, timeoutMs: 30_000 });
+          await this.attachFirstPage();
+          return;
+        } catch (e: any) {
+          const msg = String(e?.message ?? e);
+          errors.push(`  ${b.name} @ ${b.wsUrl}: ${msg}`);
         }
       }
-      const ws = await readWsUrl();
-      if (!ws) throw new Error('agent Chrome is running but no WS endpoint resolved (neither DevToolsActivePort nor /json/version)');
-      await this.session.connect({ wsUrl: ws.wsUrl, timeoutMs: 5_000 });
+      throw new Error(
+        `No discovered browser accepted a connection. If one of these is yours, click "Allow" on its remote-debugging prompt and retry:\n${errors.join('\n')}`);
     }
     await this.attachFirstPage();
   }
@@ -99,7 +163,7 @@ export class Harness {
           lastErr = 'no webSocketDebuggerUrl in /json/version';
         }
       } catch (e: any) {
-        if (String(e?.message ?? '').startsWith('permission-blocked')) throw e;
+        if (String(e?.message ?? e).startsWith('permission-blocked')) throw e;
         lastErr = String(e?.message ?? e);
       }
       await sleep(1000);
@@ -114,28 +178,31 @@ export class Harness {
   }
 
   /**
-   * Attach the first page. Named instances (BH_NAME set) prefer their own
-   * dedicated tab; the default instance prefers a real page, then a reusable
-   * blank, then creates one.
+   * Dedicated-tab attach policy (D11 coexistence iron rule): the agent ONLY
+   * ever works in its own tab — previously ours (marked), then any blank
+   * orphan, then a fresh background tab. A page the human is reading is
+   * never picked. Operating a user tab requires explicit authorization
+   * (switch_tab / set_session from the caller).
    */
   async attachFirstPage(): Promise<{ sessionId: string; targetId: string }> {
     const { targetInfos } = await this.rawBrowserCall('Target.getTargets', {}) as { targetInfos: Array<{ targetId: string; type: string; url: string; title: string }> };
     const pages = targetInfos.filter(t => t.type === 'page');
-    const named = instanceName() !== DEFAULT_NAME;
 
-    let pick: string | undefined;
-    if (named) {
-      // Dedicated tab: previously ours (marked) → any blank orphan → fresh.
-      pick = pages.find(t => (t.title ?? '').startsWith(MARKER))?.targetId
-        ?? pages.find(t => this.isReusableBlank(t.url))?.targetId;
-    } else {
-      pick = pages.find(t => !t.url.startsWith('chrome://') && !t.url.startsWith('devtools://') && !this.isReusableBlank(t.url))?.targetId
-        ?? pages.find(t => this.isReusableBlank(t.url))?.targetId;
-    }
+    // App daemons pin their working surface: BH_ATTACH_URL_MATCH (substring)
+    // prefers an EXISTING page over creating a dedicated blank — in the
+    // attach model every new tab is visible clutter in the user's browser.
+    // Preference order after that: blank > marked > create. Marked tabs often
+    // belong to ANOTHER app daemon (x-core marks x.com); the default instance
+    // must never steal an app's working tab just because it carries the horse.
+    const want = process.env.BH_ATTACH_URL_MATCH;
+    let pick = (want && pages.find(t => t.url.includes(want))?.targetId)
+      ?? pages.find(t => this.isReusableBlank(t.url))?.targetId
+      ?? pages.find(t => (t.title ?? '').startsWith(MARKER))?.targetId;
     if (!pick) {
       const r = await this.rawBrowserCall('Target.createTarget', { url: 'about:blank', background: true }) as { targetId: string };
       pick = r.targetId;
     }
+    this.ownedTargets.add(pick); // the working tab is ours to operate (and close when it's one we made)
     const sid = await this.attachTo(pick);
     return { sessionId: sid, targetId: pick };
   }
@@ -174,11 +241,24 @@ export class Harness {
   // Events
   // -------------------------------------------------------------------------
 
+  private evtSeq = 0;
+
   private onEvent(ev: CdpEvent): void {
     if (this.buf.length >= BUF_MAX) this.buf.shift();
-    this.buf.push(ev);
+    this.buf.push({ ...ev, seq: ++this.evtSeq, t: Date.now() });
 
-    if (ev.method === 'Page.javascriptDialogOpening') {
+    // Single source of truth for the attached target: the BROWSER's attach
+    // events. Anything that attaches a page (session.use, helpers'
+    // switch_tab, remote set_session) emits Target.attachedToTarget —
+    // tracking it here keeps attachedTargetId from going stale. Page-type
+    // only: iframe attaches (js() isolation sessions) must not clobber it.
+    if (ev.method === 'Target.attachedToTarget' && ev.params?.targetInfo?.type === 'page') {
+      this.attachedTargetId = ev.params.targetInfo.targetId;
+    } else if (ev.method === 'Target.targetInfoChanged'
+      && String(ev.params?.targetInfo?.title ?? '').startsWith(MARKER)) {
+      // A tab carrying the horse marker is ours by convention — closeable.
+      this.ownedTargets.add(ev.params.targetInfo.targetId);
+    } else if (ev.method === 'Page.javascriptDialogOpening') {
       this.dialog = { type: ev.params?.type ?? '', message: ev.params?.message ?? '', url: ev.params?.url ?? '' };
     } else if (ev.method === 'Page.javascriptDialogClosed') {
       this.dialog = null;
@@ -240,13 +320,19 @@ export class Harness {
    */
   private dispatchRaw(method: string, params: Record<string, unknown>, explicitSid: string | undefined, budgetMs: number): Promise<any> {
     const browserLevel = method.startsWith('Browser.') || method.startsWith('Target.') || method.startsWith('Extensions.');
+    let p: Promise<any>;
     if (browserLevel || !explicitSid) {
-      return this.withTimeout((this.session as any)._call(method, params), budgetMs);
+      p = (this.session as any)._call(method, params);
+    } else {
+      const saved = this.session.getActiveSession();
+      this.session.setActiveSession(explicitSid);
+      p = (this.session as any)._call(method, params);
+      this.session.setActiveSession(saved);
     }
-    const saved = this.session.getActiveSession();
-    this.session.setActiveSession(explicitSid);
-    const p: Promise<any> = (this.session as any)._call(method, params);
-    this.session.setActiveSession(saved);
+    if (method === 'Target.createTarget') {
+      // Every tab we create joins the closeable set (best-effort record).
+      p.then(r => { if (r?.targetId) this.ownedTargets.add(r.targetId); }).catch(() => {});
+    }
     return this.withTimeout(p, budgetMs);
   }
 
@@ -305,30 +391,14 @@ export class Harness {
     this.watchdogTimer.unref?.();
   }
 
+  /**
+   * Idle exit closes OUR session only. The browser belongs to the user —
+   * an idle daemon must never take it (or any tab) down.
+   */
   private async idleExit(): Promise<void> {
     if (this.watchdogTimer) clearInterval(this.watchdogTimer);
-    try {
-      if (process.env.BH_ISOLATED_TASK === '1') {
-        await stopAgentChrome();
-      } else {
-        // Only the last live daemon may take the browser down.
-        const others = [DEFAULT_NAME, 'x-monitor'];
-        let anyoneElse = false;
-        for (const n of others) {
-          if (n === instanceName()) continue;
-          const rec = readInstanceRecord(n);
-          if (!rec) continue;
-          try {
-            const res = await fetch(`http://127.0.0.1:${rec.port}/health`, { signal: AbortSignal.timeout(800) });
-            if (res.ok) { anyoneElse = true; break; }
-          } catch { /* down */ }
-        }
-        if (!anyoneElse) await stopAgentChrome();
-      }
-    } finally {
-      this.session.close();
-      process.exit(0);
-    }
+    this.session.close();
+    process.exit(0);
   }
 
   // -------------------------------------------------------------------------
@@ -339,18 +409,24 @@ export class Harness {
     switch (op) {
       case 'cdp': return this.cdp(payload.method, payload.params ?? {}, payload.opts ?? {});
       case 'drain': return await this.host.drainEvents();
+      case 'peek': {
+        // Non-destructive read (dashboards). Optional method filter scans the
+        // WHOLE ring so interesting events survive Network-event floods.
+        const limit = Math.min(Number(payload?.limit ?? 50), 100);
+        const flt: string[] = Array.isArray(payload?.filter) ? payload.filter : [];
+        const src = flt.length
+          ? this.buf.filter(e => flt.some(f => e.method === f || e.method.startsWith(f + '.')))
+          : this.buf;
+        return src.slice(-limit);
+      }
       case 'set_session': return this.host.setSession(payload.sessionId, payload.targetId);
       case 'current_tab': return this.host.currentTabInfo();
       case 'pending_dialog': return await this.host.pendingDialog();
-      case 'close_browser': {
-        const ok = await stopAgentChrome();
-        return { ok };
-      }
       case 'session': {
         return { sessionId: this.session.getActiveSession() ?? null, targetId: this.attachedTargetId ?? null };
       }
       case 'ping': {
-        return { ok: true, name: instanceName(), pid: process.pid, headless: await agentChromeHeadless() };
+        return { ok: true, name: instanceName(), pid: process.pid };
       }
       default:
         throw new Error(`bh: unknown __bh_meta op "${op}"`);

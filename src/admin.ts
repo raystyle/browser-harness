@@ -1,5 +1,5 @@
 /**
- * Management plane: doctor, ensureDaemon, restartDaemon, chrome-mode.
+ * Management plane: doctor, ensureDaemon, restartDaemon.
  *
  * Error messages are instructions for the calling agent, not stack traces
  * (`bh: <next step>` → stderr + exit 1). doctor --json is a stable machine
@@ -13,15 +13,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readInstanceRecord, instanceName, derivedPort, logFile, homeDir, runtimeDir, DEFAULT_NAME, workspaceDir } from './paths.js';
 import { isDevCheckout } from './paths.js';
-import { agentChromeHeadless, agentCdpUrl, chromeBinary, isAgentChromeRunning, launchAgentChrome, stopAgentChrome } from './agentChrome.js';
-import { envSetDefault } from './env.js';
+import { detectBrowsers, getBrowserCandidates } from './session.js';
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 const DIST_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 export type HealthInfo = {
   ok: boolean; uptime?: number; connected?: boolean; sessionId?: string | null;
-  name?: string; pid?: number; version?: string; headless?: boolean;
+  name?: string; pid?: number; version?: string;
 };
 
 /** GET /health on a REPL instance. */
@@ -68,22 +67,20 @@ function packageVersion(): string {
   }
 }
 
-/** Chrome-ish browser process running? By process NAME only for the passive check (never for killing). */
-function chromeRunning(): boolean {
-  try {
-    if (process.platform === 'win32') {
-      const r = spawnSync('tasklist', ['/FI', 'IMAGENAME eq chrome.exe'], { timeout: 10_000, windowsHide: true, encoding: 'utf8' });
-      const out = String(r.stdout ?? '');
-      return /chrome\.exe/i.test(out) || (() => {
-        const e = spawnSync('tasklist', ['/FI', 'IMAGENAME eq msedge.exe'], { timeout: 10_000, windowsHide: true, encoding: 'utf8' });
-        return /msedge\.exe/i.test(String(e.stdout ?? ''));
-      })();
-    }
-    const r = spawnSync('ps', ['-A', '-o', 'comm='], { timeout: 10_000, encoding: 'utf8' });
-    return /((google)?[c]hrome|chromium|msedge|Microsoft Edge)$/im.test(String(r.stdout ?? ''));
-  } catch {
-    return false;
+/**
+ * Attachable browser check: a Chromium profile with remote debugging enabled
+ * (DevToolsActivePort present — the chrome://inspect/#remote-debugging
+ * toggle channel). This is the D11 health signal; Edge is never scanned.
+ */
+async function browserAttachable(): Promise<{ ok: boolean; detail: string }> {
+  const found = await detectBrowsers();
+  if (found.length > 0) {
+    return { ok: true, detail: found.map(b => `${b.name} @ ${b.wsUrl}`).join(' | ') };
   }
+  return {
+    ok: false,
+    detail: `none — enable it: open your Chrome, visit chrome://inspect/#remote-debugging, enable "Allow remote debugging for this browser instance" (scanned: ${getBrowserCandidates().map(c => c.name).join(', ')})`,
+  };
 }
 
 function rmuxInfo(): { installed: boolean; version?: string; path?: string } {
@@ -130,21 +127,21 @@ export type DoctorResult = {
 
 /** The browser object model, distilled from the code that operates it. */
 export const BROWSER_OBJECT_MODEL: Record<string, string> = {
-  instance: 'BH_NAME 命名空间：端口/profile/workspace 按 name 派生（paths.ts 实例注册表 bh-<name>.port，default 写 bh.port）；task-<hex8> 隔离任务也是实例',
-  browser: '一个 Chrome 进程树：agent Chrome（归属记录 bh-agent.json，ensure_app_sdk 的 tab 住这里）或 task 隔离实例；daemon 经 Session 连其 browser endpoint',
+  instance: 'BH_NAME 命名空间：端口/workspace 按 name 派生（paths.ts 实例注册表 bh-<name>.port，default 写 bh.port）',
+  browser: '用户自己打开的浏览器（D11 附着模型：bh 永不 spawn）：chrome://inspect/#remote-debugging 开启后写 DevToolsActivePort，daemon 由此发现并 WS 直连（每条新连接弹一次 Allow）',
   session: 'Session（session.ts）：到 browser endpoint 的一条持久 WebSocket（flatten：全部 target session 共享一线）；activeSessionId 记活动 target，每次 cdp 调用自动注入 sessionId——这是路由的唯一机制',
-  tab: 'type=page 的 CDP target（页签）。操作面（helpers.ts）：switch_tab(target, activate=false) 附着不抢前台 / activate_tab 前台激活 / new_tab(url 默认 about:blank) / close_tab / list_tabs',
+  tab: 'type=page 的 CDP target（页签）。专属 tab 铁律：daemon 只落在自己的 tab（马标记 -> 空白孤儿 -> 后台新建）；操作用户 tab 必须显式授权（switch_tab/set_session）。操作面（helpers.ts）：switch_tab(target, activate=false) 附着不抢前台 / activate_tab 前台激活 / new_tab(url 默认 about:blank, background) / close_tab / list_tabs',
   placeholder: '_is_agent_startup_placeholder：about:blank 类启动占位页不算真 tab；ensure_real_tab 保证操作落在真页上',
   window: 'CDP windowId 存在但 helpers 层无窗口操作原语——窗口不是 bh 的一等对象；new_tab 落在当前窗口',
   navigation: 'goto_url = 地址栏输入的编程等价（Page.navigate + 等待判官 adjudicate_lost_navigation）',
 };
 
-/** Where a NEW task lands, per entry path — attach vs new tab vs isolated stack. */
+/** Where a NEW task lands, per entry path — attach vs new tab. */
 export const ATTACH_POLICY: Record<string, string> = {
-  "bh '<js>'": 'attach：在活动 target 上执行（上一个 switch_tab/use 保持的；ensure_real_tab 兜底占位页）',
-  'app (plugins)': 'attach：ensure_app_tab 按 host 一 app 一 tab 复用，不存在才 new_tab',
+  "bh '<js>'": 'attach：在活动 target 上执行（上一个 switch_tab/use 保持的；默认落点由专属 tab 铁律决定）',
+  'app (plugins)': 'attach：ensure_app_tab 按 host 一 app 一 tab 复用，不存在才 new_tab（后台创建不抢焦点）',
   "bh --new-tab '<js>'": 'explicit：new_tab(about:blank) 后附着执行，tab 保持打开（新原语）',
-  'bh --once/--batch': 'isolated：task-<hex8> 独立实例（克隆登录 profile + 内核保留端口），任务结束即拆',
+  'user tab': 'explicit 授权：调用方显式 switch_tab(targetId)/set_session 指定用户 tab 才可操作，daemon 永不自动选中用户正在看的页面',
 };
 
 export type SessionsTab = { targetId: string; url: string; title: string };
@@ -202,8 +199,9 @@ export async function runDoctor(opts: { requireExistingDaemon?: boolean } = {}):
   };
   const checks: DoctorCheck[] = [];
 
-  // chrome running (passive name check)
-  checks.push({ name: 'chrome running', ok: chromeRunning(), detail: chromeRunning() ? 'browser process present' : 'no chromium process found' });
+  // attachable browser (DevToolsActivePort scan)
+  const attachable = await browserAttachable();
+  checks.push({ name: 'browser attachable', ok: attachable.ok, detail: attachable.detail });
 
   // daemon alive — health + (non-strict) real-CDP confirmation
   const name = instanceName();
@@ -310,7 +308,14 @@ export async function ensureDaemon(): Promise<void> {
     while (Date.now() < deadline) {
       await sleep(300);
       const hh = await health(port, 800);
-      if (hh?.ok && hh.name === name) return;
+      if (hh?.ok && hh.name === name) {
+        // Listening is NOT ready: harness.connect() (attach + Allow prompt)
+        // runs in the background after listen. Only CDP answering counts.
+        try {
+          await evalOn(port, 'return (await session.domains.Target.getTargets({})).targetInfos.length', 3000);
+          return; // alive AND attached
+        } catch { /* connect still in flight (e.g. waiting on the Allow click) */ }
+      }
       const tail = logTail(name, 1).toLowerCase();
       if (tail.includes('permission-blocked')) {
         throw new Error(`permission-blocked: Chrome is showing the "Allow remote debugging?" prompt — ask the user to click Allow, then retry. Do not retry before they confirm.`);
@@ -318,7 +323,16 @@ export async function ensureDaemon(): Promise<void> {
       if (tail.includes('eaddrinuse')) break; // another spawn won it; verify below
     }
     const hh = await health(port);
-    if (hh?.ok && hh.name === name) return;
+    if (hh?.ok && hh.name === name) {
+      // HTTP-alive is NOT ready: the daemon lingers (by design) while the
+      // browser is gone or its "Allow" prompt is pending. Only CDP counts.
+      try {
+        await evalOn(port, 'return (await session.domains.Target.getTargets({})).targetInfos.length', 3000);
+        return;
+      } catch {
+        throw new Error(`daemon "${name}" answers on :${port} but is not attached yet (waiting on the "Allow remote debugging?" prompt, or the browser is closed) — it self-heals when the browser is reachable; see ${logFile(name)}`);
+      }
+    }
   }
   throw new Error(`daemon "${name}" didn't come up on :${port} — check ${logFile(name)} (tail: ${logTail(name) || 'empty'})`);
 }
@@ -381,55 +395,6 @@ export async function restartDaemon(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// chrome-mode
+// (chrome-mode removed with the D11 spawn family: there is no bh-owned browser
+// to flip headless — the attached browser belongs to the user.)
 // ---------------------------------------------------------------------------
-
-/** Write a key into <BH_HOME>/.env (in-place line replace or append). The .env is the single source of truth. */
-export function setEnvValue(key: string, value: string): void {
-  const p = path.join(homeDir(), '.env');
-  mkdirSync(path.dirname(p), { recursive: true });
-  const lines = existsSync(p) ? readFileSync(p, 'utf8').split(/\r?\n/) : [];
-  const re = new RegExp(`^\\s*(export\\s+)?${key}=`);
-  const idx = lines.findIndex(l => re.test(l) && !l.trim().startsWith('#'));
-  if (idx >= 0) lines[idx] = `${key}=${value}`;
-  else lines.push(`${key}=${value}`);
-  writeFileSync(p, lines.join('\n').replace(/\n*$/, '\n'), 'utf8');
-}
-
-/** Best-effort silence of the x-monitor supervision chain before a chrome-mode flip. */
-async function silenceXMonitor(): Promise<void> {
-  try {
-    const mod = await import('./rmux.js') as { Rmux?: new () => { killSession(n: string): Promise<void>; killServer(): Promise<void> } };
-    if (!mod.Rmux) return;
-    const r = new mod.Rmux();
-    await r.killSession('x-monitor').catch(() => {});
-    await r.killSession('x-supervisor').catch(() => {});
-  } catch { /* rmux module or binary absent — nothing to silence */ }
-}
-
-export async function runChromeMode(mode: 'on' | 'off' | 'status'): Promise<number> {
-  if (mode === 'status') {
-    const envVal = process.env.BH_CHROME_HEADLESS ?? '(unset — auto)';
-    const actual = await agentChromeHeadless();
-    console.log(`BH_CHROME_HEADLESS=${envVal}`);
-    console.log(`browser reports: ${actual === undefined ? 'not running' : actual ? 'headless' : 'headed'}`);
-    return 0;
-  }
-  setEnvValue('BH_CHROME_HEADLESS', mode === 'on' ? '1' : '0');
-  process.env.BH_CHROME_HEADLESS = mode === 'on' ? '1' : '0';
-  // Flip order (v0.6.10): silence supervised workers FIRST — a live worker that
-  // sees its daemon die would resurrect Chrome in the old mode and race ours.
-  await silenceXMonitor();
-  await restartDaemon();
-  await stopAgentChrome();
-  await launchAgentChrome();
-  await ensureDaemon();
-  const actual = await agentChromeHeadless();
-  const want = mode === 'on';
-  if (actual !== want) {
-    process.stderr.write(`bh: chrome-mode flip to ${mode} did not verify (browser reports ${actual === undefined ? 'not running' : actual}) — check ${logFile(instanceName())}\n`);
-    return 1;
-  }
-  console.log(`chrome-mode: ${mode} verified`);
-  return 0;
-}

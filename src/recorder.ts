@@ -13,7 +13,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { tmpDir, workspaceDir, instanceName } from './paths.js';
+import { tmpDir, dataDir, instanceName } from './paths.js';
 import { envTriBool } from './env.js';
 
 const CREDENTIAL_PARAMS = ['code', 'access_token', 'token', 'api_key', 'refresh_token', 'id_token', 'client_secret', 'sig', 'password'];
@@ -59,7 +59,7 @@ export function recordingEnabled(): boolean {
 }
 
 function markerFile(): string {
-  return `${workspaceDir()}/recordings/.active-${instanceName()}`;
+  return `${dataDir()}/recordings/.active-${instanceName()}`;
 }
 
 export function activeRecordingDir(): string | undefined {
@@ -71,7 +71,7 @@ export function activeRecordingDir(): string | undefined {
 }
 
 function newSessionDir(auto: boolean): string {
-  const base = path.join(workspaceDir(), 'recordings');
+  const base = path.join(dataDir(), 'recordings');
   mkdirSync(base, { recursive: true });
   const name = auto ? `session-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}` : `rec-${Date.now().toString(36)}`;
   const dir = path.join(base, name);

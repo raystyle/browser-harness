@@ -10,6 +10,11 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+/** Runtime data root (db/logs/recordings): BH_HOME/data, override with BH_DATA_DIR. */
+export function dataDir() {
+  return process.env.BH_DATA_DIR ?? path.join(bhHome(), 'data');
+}
+
 export function bhHome() {
   return process.env.BH_HOME
     ?? process.env.BROWSER_HARNESS_HOME

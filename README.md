@@ -5,22 +5,22 @@
 1. **协议层**："协议即 API"，CDP 全部 56 域 652 方法带类型直调，无封装遮蔽（源自 [browser-use/browser-harness-js](https://github.com/browser-use/browser-harness-js) 的忠实移植）
 2. **语义层**：[browser-harness-py](https://github.com/raystyle/browser-harness-py)（Python 版）同名 snake_case 助手，tab 纪律、等待判官、登录墙策略、自愈；97 站 domain-skills 知识库即插即用
 
-**零运行时依赖**（Node ≥22 内置 WebSocket/fetch/sqlite）；长驻 daemon 持久会话；agent 专属 Chrome 隔离（继承老栈登录态）；插件应用生态（web-fetch / 搜索 / cookies / X 监控全家桶）；每动作一帧录制 + 视频合成；任务级浏览器隔离。
+**零运行时依赖**（Node ≥22 内置 WebSocket/fetch/sqlite）；长驻 daemon 持久会话；**附着用户自己打开的浏览器、人机共存**（永不 spawn，只在专属 tab 工作，Chrome 144+ 官方 auto-connect 通道）；插件应用生态（web-fetch / 搜索 / cookie-io / page-detect 页面诊断 / x-core X 监控全家桶）；只读网页看板；每动作一帧录制 + 视频合成。
 
 ## 能力矩阵
 
 | 能力 | 命令 |
 |---|---|
 | CDP 协议直调 + 语义助手 | `bh '<js>'` |
-| 诊断 | `bh doctor [--json]` |
-| 专属 Chrome 管理 | `bh chrome start/stop/status`、`bh chrome-mode on/off` |
+| 诊断 | `bh doctor [--json]`（含「浏览器可附着」检查与开启指引） |
 | 技能与资产分发 | `bh skill status/sync`（三线哈希防漂移、只增不删） |
 | 抓取/搜索 | `bh web-fetch`、`bh google-search`（两步契约：`--top N` 出指标，`pluck gs_search` 取数）、`bh bing-search` |
-| Cookie 迁移 | `bh cookies export/import` |
-| X 监控 | `bh x-monitor [start]`（rmux 自愈监督）/ `bh x-monitor stop`（按序拆栈：supervisor -> worker -> 专属 daemon）-> `bh x-search` / `bh x-harvest`；`bh rmux` 看监督面状态（会话/pane 树） |
+| Cookie 迁移 | `bh cookie-io export/import` |
+| X 监控 | `bh x-core [start]`（附着你的浏览器 + rmux 自愈监督）/ `bh x-core stop`（按序拆栈：supervisor -> worker -> 专属 daemon）/ `bh x-core search` / `bh x-core harvest`；`bh rmux` 看监督面状态（会话/pane 树） |
 | 录制/视频 | `bh record …` -> `bh video init/export` |
-| 状态探测 | `bh sessions`：对象模型（instance/browser/session/tab）+ 全实例清单 + 窗口分组 tab 表 + 新任务附着策略（attach / app 复用 / `--new-tab` 显式新开 / `--once` 隔离栈） |
-| 任务隔离 | `bh --once '<js>'`、`bh --batch <file>`、`bh --new-tab '<js>'`（显式新开 tab 执行） |
+| 状态探测 | `bh sessions`：对象模型（instance/browser/session/tab）+ 全实例清单 + 窗口分组 tab 表 + 新任务附着策略（专属 tab 铁律 / app 复用 / `--new-tab` 显式新开 / 用户 tab 显式授权） |
+| 网页看板 | `bh dashboard`：只读看板 http://127.0.0.1:9870（SSE 推送）：守护实例/附着面/rmux 监督/worker 心跳/页面健康判定/事件流尾 |
+| 显式新 tab | `bh --new-tab '<js>'`（新开 about:blank 附着执行） |
 | 多实例 | `BH_NAME=<name> bh …`（端口自动派生） |
 
 详细用法见技能文档（`skill/SKILL.md`，装到 `~/.claude/skills/browser/`）。
@@ -43,9 +43,9 @@
 要求 Node ≥ 22（原生 WebSocket 客户端）。然后：
 
 ```bash
-npm install -g browser-harness-ts      # 发布后
-# 或从源码：
-npm install && npm run build && npm link
+npm install -g browser-harness-ts      # npm 发布后
+# 或本地封板安装（拷贝式，不走 link）：
+npm install && npm install -g .
 ```
 
 这会把 `bh` CLI 装到 PATH（npm 在 Windows 上自动创建 `.cmd`/`.ps1`/sh 三种 shim，cmd、PowerShell、git-bash 均可直接使用）。
@@ -95,8 +95,8 @@ browser 技能驱动我的浏览器：查看我打开的所有标签页，按主
 
 - server 以分离进程方式拉起（`windowsHide`），不随启动它的终端退出；`bh --stop` 负责关停。
 - 默认日志：`%TEMP%\bh.log`（用 `CDP_REPL_LOG` 覆盖）。
-- Chrome 136+ 拒绝在默认 user-data-dir 上启用 `--remote-debugging-port`，自动化用途的实例要单独指定 `--user-data-dir`。
-- 浏览器发现：Windows 扫描注册表（StartMenuInternet + App Paths），按 CDP 适用性排序（Chrome Dev > Beta/Canary > Chrome > Chromium > Brave > Edge）；装在非标准位置也能找到。用 `BH_CHROME_PATH` 钉死指定二进制。
+- Chrome 136+ 拒绝在默认 user-data-dir 上启用 `--remote-debugging-port`。附着通道是官方 auto-connect：在你的 Chrome（144+）打开 `chrome://inspect/#remote-debugging`，启用「Allow remote debugging for this browser instance」；daemon 靠 profile 目录的 DevToolsActivePort 文件发现并 WS 直连（每条新连接 Chrome 弹一次 Allow）。
+- 浏览器发现：扫描各 Chromium 默认 profile 目录的 DevToolsActivePort（Chrome Stable/Dev/Beta/Canary、Chromium、Brave、Arc、Vivaldi、Opera），按最近启动排序；**Edge 不在发现范围**。用 `BH_CDP_URL`/`BH_CDP_WS` 可钉死连接目标。
 - 与原 curl 版 CLI 的已知差异：CLI 的 `fetch` 默认有约 5 分钟请求超时；确实需要更长的片段应改用带限时上界的 `session.waitFor`。
 
 ## 参与贡献

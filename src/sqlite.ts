@@ -63,3 +63,11 @@ export function tableExists(db: DatabaseSync): boolean {
   const r = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='tweets'`).get();
   return !!r;
 }
+
+/** Inventory for round logs: total rows + earliest/latest post times.
+ *  NULLIF: some posts carry no timestamp (ads/promoted) — '' must not
+ *  become the "earliest" via string sort. */
+export function tweetStats(db: DatabaseSync): { total: number; earliest: string; latest: string } {
+  const r = db.prepare(`SELECT COUNT(*) AS c, MIN(NULLIF(posted_at, '')) AS a, MAX(NULLIF(posted_at, '')) AS m FROM tweets`).get() as { c?: number; a?: string | null; m?: string | null } | undefined;
+  return { total: Number(r?.c ?? 0), earliest: String(r?.a ?? ''), latest: String(r?.m ?? '') };
+}
