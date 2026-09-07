@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- **super-ocr 验证码图识别（D25）**：扫描当前网页定位验证码图片，用 ppu-paddle-ocr 识别（不自动填写）；交互式拼图/滑块如实报 CAPTCHA\|WALL；引擎按需安装到 `<BH_HOME>/ocr`
+- **ffmpeg 探测与 mp4 导出**：合并 Windows 用户 PATH（agent 进程也能找到 `D:\ohmyenv\ffmpeg\bin`）；ffmpeg 9 改 `-fps_mode vfr`（`-vsync` 已删除）
 - **看板左侧栏**：去掉标题栏「部署信息」按钮，改为主区左侧分割条箭头收起/展开
 - **看板禁止当工作 tab**：default 与应用 attach/goto/switch/new_tab 拒绝 `http://127.0.0.1:9870`；已附着则跳到新空白页再导航，不把看板页开走
 - **墙通知文案**：标题 `bh · <判定>`，正文三行（页面 / 原因 / 地址）

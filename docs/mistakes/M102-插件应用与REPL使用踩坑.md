@@ -9,6 +9,8 @@
 | M011 | CF 对页内同源 `fetch('?format=json')` 连续请求 tarpit：每页首约 2 次 200，其后连接挂起不响应；`awaitPromise` 的 evaluate 永不落定，CDP 层只见超时或静默 | 站点正文提取弃页内 fetch、全走 DOM（导航 + 块遍历）；SDK 方法保持同步不返回挂起 Promise；medium-search 已按此实现 [实证: 2026-09-07 med-d 同轮 a/b 成功 c 起全挂] | 已机制化（架构决策） |
 | M012 | Medium 过墙后搜索结果被会话级限流：Stories tab 空、SPA 可能卡在 Topics 内容；文章页不受影响。表现为应用 TIMEOUT（20s deadline）而非错误，重导航与点 tab 均不恢复 | 如实 TIMEOUT 上报（不硬闯不伪装空结果）；SKILL 面记录已知行为；等会话恢复或换登录态 [实证: 2026-09-07 重启 daemon 后 cards=0，grab 同会话正常] | 已处置（观测记录） |
 | M013 | supervisor-core 把缺心跳（age === null）当 stale：ensureCompanions 先起 page-detect 再起 supervisor，首拍尚无 page-watch.json 就杀刚起来的进程；unwatch 只杀会话写 stopped，监督面不读该状态，下一拍又拉起 | 缺心跳且会话仍活 → 不重启；stopped 状态跳过；新会话 SPAWN_GRACE；ensureCompanions 同样跳过 stopped [推断: 2026-09-07 review Issue 1/2，逻辑修复已落地，实机循环待复验] | 已机制化（代码约束） |
+| M015 | ppu-paddle-ocr `recognize(string)` 只认以 `/` 或 `http` 开头的路径；Windows `D:\...` 被当成 Canvas，抛 `image.getContext is not a function` | 一律把 PNG 读成 ArrayBuffer 再传入；super-ocr 已按此实现 [实证: 2026-09-07 fixture 裁剪成功后 OCR 报 getContext] | 已机制化（代码约束） |
+| M016 | Windows + fnm：`Get-Command npm` 是 `npm.ps1`，`spawnSync('npm.cmd')` 无 PATH 直调失败（status null） | setup 走 `node npm-cli.js`（与 node.exe 同目录），不经过 .cmd/.ps1 [实证: 2026-09-07 super-ocr setup 首跑 exit null] | 已机制化（代码约束） |
 
 ## 复发监控
 

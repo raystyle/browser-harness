@@ -25,13 +25,23 @@
 | 文档同步 | 已完成 | SKILL / README / search.md / G002 / CHANGELOG | PLAN #3 |
 | 开发态实搜冒烟 | 已完成 | 指标 count=5 bytes=1290、pluck 五条 title 均非空 [实证: 2026-09-07 TypeScript browser] | PLAN #4 |
 
+## D25 任务清单
+
+| 任务项 | 进度 | 说明 | 出处 |
+| --- | --- | --- | --- |
+| `__ocr` SDK 定位 | 已完成 | ready/locate/export；关键词+邻近标签+尺寸；交互式拼图单独报 | PLAN #1 |
+| super-ocr 命令层 | 已完成 | 扫描→定位→OCR；setup 装引擎到 BH_HOME/ocr；不填写；ArrayBuffer 规避 M015 | PLAN #2 |
+| 文档同步 | 已完成 | SKILL / README / G002 / CHANGELOG / INDEX / M015 M016 | PLAN #3 |
+| 开发态冒烟 | 已完成 | locate canvas+验证码；OCR K8M2 conf=0.9997；reCAPTCHA iframe CAPTCHA\|WALL [实证: 2026-09-07] | PLAN #4 |
+| 安装态验收 | 已完成 | pack + 全局 tgz（无 tsconfig）；`bh skill sync` 铺装；`bh super-ocr setup` 装到 `~/.config/browser-harness/ocr`；全局 `bh super-ocr` 识别 K8M2 [实证: 2026-09-07 npm-global] | R001 |
+
 ## 待办池（与 D11 无依赖）
 
 | 任务项 | 进度 | 说明 | 出处 |
 | --- | --- | --- | --- |
 | npm 发布（0.1.0） | 不做 | 2026-09-07 用户裁定不做；本地 `npm pack` + 全局 tgz 安装验收即可，不走 registry 发布 | ROADMAP |
 | bing-search 按 G002 升级 | 已完成 | D22：__bs + 两步契约 bs_search；实搜 5 条 title 非空 [实证: 2026-09-07] | G002 / PRD D22 |
-| mp4 视频管线验证 | 挂起 | 2026-09-07 用户改裁为挂起；保持 HTML 幻灯片降级，待装 ffmpeg 后再验 mp4 | ROADMAP + M005 |
+| mp4 视频管线验证 | 已完成 | 2026-09-07：User PATH 探测 + ffmpeg 9 fps_mode；export mp4 与 contact sheet 冒烟通过 [实证: 1655B] | ROADMAP + M005 |
 | 搜索与抓取极限测试 | 已完成 | D24：google 5 条 + bing 5 条 + web-fetch 一篇正文/一篇 DNS 失败如实记 [实证: 2026-09-07 diary] | PRD D24 |
 | x-search / x-harvest 标准化 | 已完成 | D23：JSON `{_ok,_v,_ts}`；空库 count=0；harvest 打指标 | G002 / PRD D23 |
 | MCP 桥接 | 不做 | 2026-09-07 用户裁定不做；不在忠实移植范围，不再挂起等待 | ROADMAP |

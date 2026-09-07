@@ -32,6 +32,7 @@
 
 ## 进程
 
+- D25 super-ocr 已交付（扫描定位 + PaddleOCR；fixture K8M2）
 - D22/D23/D24 已交付（bing G002、x-intel 合约、极限测试）
 - D11 验收冒烟仍未关：x-monitor 触发版待复验
 
@@ -39,6 +40,7 @@
 
 | 日期 | 目标 | 结果 |
 | --- | --- | --- |
+| 2026-09-07 | D25 super-ocr 验证码图识别 | 达成：扫描当前页定位验证码图 + ppu-paddle-ocr；fixture 识别 K8M2；交互式拼图 CAPTCHA\|WALL |
 | 2026-09-07 | D22 bing-search G002 | 达成：__bs + bs_search；实搜 5 条 title 非空 |
 | 2026-09-07 | D23 x-intel search/harvest 合约 | 达成：固定形 JSON；stats 604 帖 |
 | 2026-09-07 | D24 搜索与抓取极限测试 | 达成：双引擎 5+5 + 抓取一篇正文、一篇 DNS 失败如实 |

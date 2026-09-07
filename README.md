@@ -5,7 +5,7 @@
 1. **协议层**："协议即 API"，CDP 全部 56 域 652 方法带类型直调，无封装遮蔽（源自 [browser-use/browser-harness-js](https://github.com/browser-use/browser-harness-js) 的忠实移植）
 2. **语义层**：[browser-harness-py](https://github.com/raystyle/browser-harness-py)（Python 版）同名 snake_case 助手，tab 纪律、等待判官、登录墙策略、自愈；97 站 domain-skills 知识库即插即用
 
-**零运行时依赖**（Node ≥22 内置 WebSocket/fetch/sqlite）；长驻 daemon 持久会话；**附着用户自己打开的浏览器、人机共存**（永不 spawn，只在专属 tab 工作，Chrome 144+ 官方 auto-connect 通道）；插件应用生态（web-fetch / 搜索 / cookie-io / page-detect 页面诊断 / x-intel X 监控全家桶）；只读网页看板；每动作一帧录制 + 视频合成。
+**零运行时依赖**（Node ≥22 内置 WebSocket/fetch/sqlite）；长驻 daemon 持久会话；**附着用户自己打开的浏览器、人机共存**（永不 spawn，只在专属 tab 工作，Chrome 144+ 官方 auto-connect 通道）；插件应用生态（web-fetch / 搜索 / cookie-io / page-detect 页面诊断 / super-ocr 验证码图识别 / x-intel X 监控全家桶）；只读网页看板；每动作一帧录制 + 视频合成。
 
 ## 能力矩阵
 
@@ -21,6 +21,7 @@
 | 状态探测 | `bh sessions`：对象模型（instance/browser/session/tab）+ 全实例清单 + 窗口分组 tab 表 + 新任务附着策略（专属 tab 铁律 / app 复用 / `--new-tab` 显式新开 / 用户 tab 显式授权） |
 | 网页看板 | `bh dashboard`：只读看板 http://127.0.0.1:9870（SSE 推送）：守护实例/附着面/rmux 监督/worker 心跳/页面健康判定/事件流尾；墙类判定（含 Google 验证/Cloudflare 挑战/白屏持久化/资源阻断）边沿弹 Chrome 系统通知（requireInteraction 驻留，一次授权常驻）；独立应用卡片区（描述/运行流水/日志行/库存，可折叠拖拽）；部署信息栏默认隐藏；页面版本握手自动重载。看板不是工作 tab，default 与应用禁止附着 |
 | 页面守护 | `bh page-detect watch [--interval S]`：常驻只读探测全部页面，墙/白屏/资源阻断自动告警（`unwatch` 停、`status` 查）；单次诊断 `bh page-detect [url片段]` 七判保留 |
+| 验证码图 OCR | `bh super-ocr [url片段]`：扫描当前页定位验证码图片并识别（不填写）；`locate` 只定位；`setup` 安装 ppu-paddle-ocr 到 `<BH_HOME>/ocr`；交互式拼图/滑块报 CAPTCHA\|WALL |
 | 初始化 | 首次使用判系统环境自动带起：默认浏览器守护 + rmux 守护 + 看板 + page-detect watch + supervisor-core（幂等；Node ≥22 版本闸）。page-detect 使用独立实例，首次会多弹一次 Chrome Allow |
 | 显式新 tab | `bh --new-tab '<js>'`（新开 about:blank 附着执行） |
 | 多实例 | `BH_NAME=<name> bh …`（端口自动派生） |

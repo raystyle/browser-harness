@@ -1,6 +1,6 @@
 ---
 name: browser
-description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平台。两层 API——协议层（652 个 CDP 方法全类型直调）与语义层（goto_url/js/click_at_xy/wait_for_render 等 snake_case 助手，tab 纪律、等待判官、自愈）。经 bh CLI 运行 JS 片段，长驻 Node daemon 持有持久会话，session、活动 target、全局变量跨调用保持。附着用户自己打开的浏览器（永不 spawn，专属 tab 铁律与人机共存）。含插件应用（web-fetch/google-search/medium-search/bing-search/cookie-io/page-detect/x-intel X 监控）、domain-skills 站点知识（94 站）、录制与视频导出。当用户想自动化、抓取、测试或检查浏览器时使用。
+description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平台。两层 API——协议层（652 个 CDP 方法全类型直调）与语义层（goto_url/js/click_at_xy/wait_for_render 等 snake_case 助手，tab 纪律、等待判官、自愈）。经 bh CLI 运行 JS 片段，长驻 Node daemon 持有持久会话，session、活动 target、全局变量跨调用保持。附着用户自己打开的浏览器（永不 spawn，专属 tab 铁律与人机共存）。含插件应用（web-fetch/google-search/medium-search/bing-search/cookie-io/page-detect/super-ocr 验证码图识别/x-intel X 监控）、domain-skills 站点知识（94 站）、录制与视频导出。当用户想自动化、抓取、测试或检查浏览器时使用。
 ---
 
 # browser：bh 平台技能
@@ -19,6 +19,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | 搜东西 | `bh google-search <q> --top N` / `bh bing-search <q> --top N`（两步契约） | `primitives/search.md` |
 | 抓取并分析某页内容 | `bh web-fetch <url>`（HTTP 优先三条件升级浏览器） | `primitives/fetch-analyze.md` |
 | 页面打不开/登不上/空白 | `bh page-detect [url片段]`（七判 + 证据 + 建议） | `primitives/detect.md` |
+| 识别网页验证码图片 | `bh super-ocr [url片段]`（扫描定位 + OCR；不填写） | 应用层 |
 | 迁移登录态 | `bh cookie-io export\|import` | 应用层 |
 | 监控 X / 查收割库 | `bh x-intel start\|stop` / `x-intel search\|harvest` | 应用层 |
 | 冷门交互（下拉/shadow-DOM/拖拽…） | 直接写 CDP，先查配方 | `interaction-skills/<机制>.md` |
@@ -62,6 +63,11 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 - `bh bing-search <q> [--top N] [--page N]`：两步契约（指标落盘，`pluck bs_search` 取数）；CAPTCHA 如实报不重试；`--limit` 等同 `--top`
 - `bh page-detect [url片段]`：页面诊断七判 + 事件证据 + 建议
 - `bh page-detect watch [--interval S] | unwatch | status`：通用页面守护（D18）：常驻只读探测附着浏览器全部 http(s) 页面，墙类边沿（含白屏持久化、资源被 CF 阻断）自动告警，通知经看板已授权源弹出；状态落 data/page-watch.json
+- `bh super-ocr [url片段] [--top N] [--save]`：扫描当前（或匹配）页，定位验证码图片并用 ppu-paddle-ocr 识别；不自动填写。合约 `_v` 1.0.0；cache 仅 `--save` 时落 `cache/super-ocr/`
+- `bh super-ocr locate [url片段]`：只定位不 OCR
+- `bh super-ocr setup`：把 ppu-paddle-ocr + onnxruntime-node 装到 `<BH_HOME>/ocr`（核心包零 runtime 依赖）
+- `bh super-ocr ready`：引擎 + 当前 tab 探活
+  - 错误决策：`NOT_FOUND` 引擎未装 → `setup`；无匹配 tab 如实列出。`CAPTCHA|WALL` 交互式拼图/滑块 → 窗口内人工完成，禁止当图片 OCR。`TIMEOUT` SDK 未就绪。`count=0` 是成功（页上没有图形验证码），不是失败。不自动填写、不自动重试。
 - `bh cookie-io export|import`：CDP 存取，默认拒绝全量导出（--domain/--all）
 - `bh x-intel [start|stop]`：X 监控（附着浏览器 + rmux 自愈监督 + SQLite 去重库；关浏览器即暂停，只重拉 worker）
 - `bh x-intel search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器；JSON `{_ok,_v,_ts,count,items}`（`--csv` 仍出 CSV）
@@ -73,7 +79,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 
 ```
 browser-workspace/          应用与资产运行面
-  apps/                     七应用 + x-intel/ 组件目录
+  apps/                     八应用 + x-intel/ 组件目录
   browser_helpers.mjs       站点级助手（可覆盖）
   domain-skills/            94 站知识库（只增不删）
   sdk/                      页面常驻 SDK
@@ -89,7 +95,7 @@ aa, agentlist, alaska, amazon, archive-org, articulate-rise, arxiv, arxiv-bulk, 
 
 ## 登录墙
 
-停下问用户。例外：Chrome 已登录的 SSO 可自动用；密码/MFA/consent/账号歧义必停。检测用 `detect_page_blocks()`；被墙 ≠ 无结果：stderr 告警 + 返回 []。
+停下问用户。例外：Chrome 已登录的 SSO 可自动用；密码/MFA/consent/账号歧义必停。检测用 `detect_page_blocks()`；被墙 ≠ 无结果：stderr 告警 + 返回 []。静态图形验证码可显式跑 `bh super-ocr` 识别（不自动填写）；reCAPTCHA/滑块/拼图仍停、窗口内人工完成。
 
 ## 语义层速查
 

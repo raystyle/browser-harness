@@ -38,3 +38,4 @@
 | D22 | bing-search 按 G002 升级：常驻 SDK + 就绪判官 + 两步契约，修 title 偶发空（M004 同源） | 已交付 | 第 1 轮（2026-09-07 用户指令做待办三项；对齐 google-search 全套路） | assets/sdk/bing.ts + apps/bing-search.mjs；验收 [实证: --top 5 指标 + pluck 五条 title 非空] |
 | D23 | x-intel search / harvest 固定形合约对齐 G002（不拆独立应用；集合走已有 db） | 已交付 | 第 1 轮（同批；search/harvest 痛点=输出无 `_ok/_v/_ts`、空库静默） | search.mjs harvest.mjs；验收 [实证: --stats 与 search TypeScript --limit 3 均为 {_ok,_v,_ts}] |
 | D24 | 重启 D04 前身「搜索与抓取极限测试」：google + bing 实搜 + web-fetch 抓取，墙如实记 | 已交付 | 第 1 轮（同批；产物归 diary，不另写脚本资产，口径同 D04） | diary 2026-09-07；google 5 条 + bing 5 条 + fetch 593 词 / DNS 失败如实 |
+| D25 | super-ocr 插件应用：扫描当前网页，定位验证码图片并用 ppu-paddle-ocr 识别（不自动填写；交互式拼图/滑块如实报 CAPTCHA\|WALL）。引擎按需安装到 `<BH_HOME>/ocr`，核心包保持零 runtime 依赖 | 已交付 | 第 1 轮（2026-09-07：用户指定应用名 super-ocr、引擎 ppu-paddle-ocr、用法=扫描网页→定位验证码图→OCR） | G002；assets/sdk/ocr.ts + apps/super-ocr.mjs；验收 [实证: fixture canvas 识别 K8M2 conf=0.9997；reCAPTCHA iframe 报 CAPTCHA\|WALL] |
