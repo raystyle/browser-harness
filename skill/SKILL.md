@@ -25,6 +25,27 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 
 **关闭边界（硬规则）**：只关自己开的 tab；绝不关用户 tab、绝不关闭/重塑附着的浏览器（程序级守卫在 Session 调用层，绕不过）。**授权粒度**：Chrome 许可按连接计，daemon 单长连 = 一天个位数弹窗。
 
+## workspace 索引（`~/.config/browser-harness`）
+
+```
+browser-workspace/          应用与资产运行面
+  apps/                     六应用：web-fetch / google-search / bing-search /
+                            cookie-io / page-detect / x-core.mjs（+ x-core/ 组件目录）
+  browser_helpers.mjs       站点级助手（命名导出按名覆盖内置）
+  domain-skills/            94 站知识库（源同步，只增不删）
+  sdk/                      页面常驻 SDK（google.min.js 等）
+data/                       运行时数据：x_tweets.db / x_worker.log / 心跳 / 录制
+runtime/                    实例注册表 bh-<name>.port
+```
+
+## domain-skills 站点索引（94 站）
+
+`BH_DOMAIN_SKILLS=1` 时 `goto_url()` 附返回匹配站目录的 .md 清单。覆盖：
+
+aa, agentlist, alaska, amazon, archive-org, articulate-rise, arxiv, arxiv-bulk, atlas, bigbang-hr, bilibili, booking-com, BOSS-zhipin, capterra, centilebrain, claude-ai, coingecko, coinmarketcap, coursera, craigslist, crossref, ctrip, dev-to, duckduckgo, ebay, etsy, eventbrite, expedia, facebook, flipkart, framer, fred, g2, genius, github, glassdoor, gmail, goodreads, gutenberg, hackernews, howlongtobeat, hubspot, imdb, itch-io, job-boards, letterboxd, linkedin, loom, ly-com, macrotrends, manus, medium, metacritic, musicbrainz, nasa, news-aggregation, openalex, open-library, openstreetmap, package-registries, perplexity, polymarket, producthunt, pubmed, qbo, quora, rawg, reddit, rest-countries, sec-edgar, shopify-admin, soundcloud, spotify, stackoverflow, steam, substack, tasksquad-ai, thetechgeeks, tiktok, tradingview, trello, trustpilot, vercel, walmart, wayback-machine, weather, wehotel, wellfound, weread, world-bank, x, xiaohongshu, youtube, zillow
+
+目录名 = hostname 去 www 首段；未列出的站点即无既存知识，走 interaction-skills 的通用配方。
+
 
 ## 登录墙
 
