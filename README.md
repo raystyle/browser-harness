@@ -57,7 +57,16 @@ bh --version           # 验证：应输出 package.json 里的版本号
 
 > **注意**：`npm install -g .` 在部分平台会创建符号链接而非拷贝，导致 BH_HOME 落到源码目录（dev checkout 判定）；`npm pack` + 安装 tarball 才是干净的安装态。
 
-### 方式二：开发模式（源码直跑）
+### 方式二：GitHub Release 下载 tgz 安装（免 clone 源码）
+
+从 [Releases](https://github.com/raystyle/browser-harness/releases) 下载 `browser-harness-ts-<版本>.tgz` 附件后：
+
+```bash
+npm install -g ./browser-harness-ts-0.2.1.tgz
+bh --version   # -> 0.2.1
+```
+
+### 方式三：开发模式（源码直跑）
 
 ```bash
 git clone https://github.com/raystyle/browser-harness.git
@@ -109,7 +118,7 @@ bh skill sync
 或者把下面这段直接粘给你的 agent，它会装好 CLI 并执行第一个任务：
 
 ```
-git clone https://github.com/raystyle/browser-harness.git 后按 README 安装部署节装好 `bh`，确认 `bh --status` 可用，然后用
+Run: 从 https://github.com/raystyle/browser-harness/releases 下载 browser-harness-ts-0.2.1.tgz，`npm install -g ./browser-harness-ts-0.2.1.tgz`，确认 `bh --status` 可用，然后用
 browser 技能驱动我的浏览器：查看我打开的所有标签页，按主题分组，
 并截取最有意思的一个的截图。
 ```
