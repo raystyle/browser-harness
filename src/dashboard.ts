@@ -37,7 +37,7 @@ function instanceNames(): string[] {
   try {
     for (const f of readdirSync(runtimeDir())) {
       const m = /^bh-(.+)\.port$/.exec(f);
-      if (m) out.add(m[1] ?? '');
+      if (m?.[1] && m[1] !== 'x-core') out.add(m[1]);
     }
   } catch { /* runtime dir empty */ }
   return [...out].filter(Boolean);
@@ -172,7 +172,8 @@ function collectWorker(): { heartbeatAgeS: number | null; logTail: string[]; pag
   } catch { /* no heartbeat */ }
   try {
     const log = path.join(dataDir(), 'x_worker.log');
-    if (existsSync(log)) out.logTail = readFileSync(log, 'utf8').split(/\r?\n/).filter(Boolean).slice(-8);
+    if (existsSync(log)) out.logTail = readFileSync(log, 'utf8').split(/\r?\n/).filter(Boolean).slice(-8)
+      .map(l => l.replace(/x-core::/g, 'x-intel::'));
   } catch { /* unreadable */ }
   try {
     const log = path.join(dataDir(), 'page-watch.log');
@@ -228,7 +229,7 @@ function buildApps() {
   const resident: Record<string, boolean> = {};
   try {
     for (const f of readdirSync(path.join(ws, 'apps'))) {
-      if (!f.endsWith('.mjs')) continue;
+      if (!f.endsWith('.mjs') || f === 'x-core.mjs') continue;
       const n = f.slice(0, -4);
       appNames.push(n);
       try {
@@ -245,12 +246,7 @@ function buildApps() {
       try { const r = JSON.parse(line); if (r && r.app) runs.push(r); } catch { /* skip */ }
     }
   } catch { /* ledger starts empty */ }
-  // Guardian status contract (G002): every resident app publishes
-  // data/<app>.status.json { _v, ts, state, metrics[], event } — one schema.
-  const status: Record<string, { ts?: string; state?: string; metrics?: Array<{ label: string; value: string }>; event?: { ts: string; text: string } } | null> = {};
-  for (const n of appNames) {
-    try { status[n] = JSON.parse(readFileSync(path.join(dataDir(), `${n}.status.json`), 'utf8')); } catch { status[n] = null; }
-  }
+  const status = readAppStatus(appNames);
   const caches: Record<string, Array<{ cache: string; batches: number; last: string; count: number }>> = {};
   for (const n of appNames) {
     caches[n] = [];
@@ -267,9 +263,20 @@ function buildApps() {
   }
   return { appNames, desc, resident, status, runs, caches };
 }
+type AppStatus = { ts?: string; state?: string; metrics?: Array<{ label: string; value: string }>; event?: { ts: string; text: string; kind?: string } } | null;
+function readAppStatus(appNames: string[]): Record<string, AppStatus> {
+  const status: Record<string, AppStatus> = {};
+  const dir = dataDir();
+  for (const n of appNames) {
+    try { status[n] = JSON.parse(readFileSync(path.join(dir, `${n}.status.json`), 'utf8')); } catch { status[n] = null; }
+  }
+  return status;
+}
 let appsCache: { at: number; data: ReturnType<typeof buildApps> } = { at: 0, data: buildApps() };
 function collectApps() {
-  if (Date.now() - appsCache.at > 10_000) appsCache = { at: Date.now(), data: buildApps() };
+  const now = Date.now();
+  if (now - appsCache.at > 10_000) appsCache = { at: now, data: buildApps() };
+  else appsCache.data.status = readAppStatus(appsCache.data.appNames);
   return appsCache.data;
 }
 
@@ -317,7 +324,7 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&a
 
 const PAGE = `<!doctype html>
 <html lang="zh"><head><meta charset="utf-8">
-<title>bh 看板</title>
+<title>BROWSER HARNESS看板</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   /* Apple design tokens — exact HIG values (macOS 14 / iOS 17 light) */
@@ -333,40 +340,38 @@ const PAGE = `<!doctype html>
   html, body { height: 100%; }
   body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
                     "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
-         background: var(--bg); color: var(--label); padding: 10px; font-size: 13px; /* macOS body */
+         background: #e5e5e5; color: var(--label); font-size: 13px;
          -webkit-font-smoothing: antialiased; }
-  .win { width: 100%; height: 100%; background: var(--win); border-radius: 10px; overflow: hidden;
-         display: flex; flex-direction: column;
-         box-shadow: 0 12px 40px rgba(0,0,0,.16), 0 0 0 .5px rgba(0,0,0,.10); }
-  /* titlebar: unified toolbar — 38px, lights 12px @ 8px pitch, 20px inset */
-  .titlebar { flex: 0 0 38px; position: relative; display: flex; align-items: center; padding: 0 16px;
-              background: linear-gradient(#fcfcfc, #f3f3f3); border-bottom: 1px solid #d8d8dc; }
-  .titlebar b { position: absolute; left: 50%; transform: translateX(-50%); /* true macOS center */
-                font-size: 12px; font-weight: 600; color: #26282a;
+  .win { width: 100%; height: 100%; background: var(--win); overflow: hidden;
+         display: flex; flex-direction: column; }
+  /* unified titlebar: 52px Big Sur+, traffic lights 12px @ 8px gap, 20px inset */
+  .titlebar { flex: 0 0 52px; position: relative; display: flex; align-items: center; justify-content: flex-end;
+              padding: 0 16px;
+              background: linear-gradient(#ededed, #e6e6e6); border-bottom: 1px solid #c6c6c8; }
+  .titlebar b { position: absolute; left: 50%; transform: translateX(-50%);
+                font-size: 13px; font-weight: 600; color: #1d1d1f;
                 text-transform: uppercase; letter-spacing: .08em; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.12); }
-  .r { background: #ff5f57; } .y { background: #febc2e; } .g { background: #28c840; }
-  .appicon { width: 24px; height: 24px; border-radius: 6px; margin-left: 10px; flex: 0 0 24px;
-             background: var(--blue);
-             display: flex; align-items: center; justify-content: center;
-             box-shadow: 0 1px 2px rgba(0,0,0,.18); }
-  .appicon svg { width: 17px; height: 17px; display: block; }
   .nicon svg { width: 16px; height: 16px; display: block; }
-  .layout { flex: 1; min-height: 0; display: flex; }
-  .main { flex: 1; min-width: 0; padding: 16px 0 16px 16px; overflow-y: auto; } /* right seam: 0+1px border+16 = matches the 16px card gap */
+  .layout { flex: 1; min-height: 0; display: flex; background: #f5f5f7; }
+  .main { flex: 1; min-width: 0; padding: 16px; overflow-y: auto; background: #f5f5f7; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  /* right side: TWO independent stacked zones — 应用 cards on top, the
-     应用实时事件 rail below; both live in one vibrancy column */
-  .rightside { flex: 0 0 34%; min-width: 380px; max-width: 560px; padding: 16px; display: flex; flex-direction: column; gap: 14px;
+  .rightside { flex: 0 0 34%; min-width: 360px; max-width: 520px; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px;
                min-height: 0; overflow-y: auto;
-               background: rgba(246,246,248,.78); backdrop-filter: blur(24px) saturate(1.4);
-               border-left: 1px solid var(--sep); }
-  .railwrap { display: flex; flex-direction: column; min-height: 0; }
-  /* left source bar: install & asset inventory */
-  .sourcebar { flex: 0 1 auto; width: fit-content; min-width: 170px; max-width: 230px;
-               padding: 10px 12px; overflow-y: auto; min-height: 0;
-               background: rgba(246,246,248,.82); backdrop-filter: blur(24px) saturate(1.4);
-               border-right: 1px solid var(--sep); font-size: 13px; }
+               background: #ececec; border-left: 1px solid #d2d2d7; }
+  .railwrap { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  .sourcebar { flex: 0 0 220px; width: 220px; padding: 8px 10px 12px; overflow-y: auto; min-height: 0;
+               background: #e8e8ed; font-size: 13px; }
+  .layout.nosource .sourcebar { display: none; }
+  /* NSSplitView: 1px rule + circular chevron on the seam */
+  .split { flex: 0 0 1px; position: relative; background: #d2d2d7; cursor: pointer; user-select: none; }
+  .layout.nosource .split { flex: 0 0 16px; background: #e8e8ed; border-right: 1px solid #d2d2d7; }
+  .splitarr { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+              width: 18px; height: 18px; border-radius: 50%;
+              background: #fff; border: .5px solid rgba(0,0,0,.14);
+              box-shadow: 0 1px 2px rgba(0,0,0,.08);
+              color: #6e6e73; font-size: 9px; line-height: 18px; text-align: center;
+              pointer-events: none; }
+  .split:hover .splitarr { border-color: rgba(0,0,0,.22); color: #1d1d1f; }
   /* macOS disclosure groups: collapsed by default, triangle rotates open */
   .sourcebar summary { list-style: none; cursor: pointer; font-size: 11px; font-weight: 700; color: var(--label2);
                       text-transform: uppercase; letter-spacing: .5px; padding: 2px 0 6px;
@@ -387,16 +392,17 @@ const PAGE = `<!doctype html>
   .spath.inline .sl { display: inline; margin-right: 10px; }
   .spath.inline .sv { display: inline; margin-top: 0; } /* short values sit beside the label */
   #rail { flex: 1; overflow-y: auto; min-height: 0; }
-  .railhead { font-size: 12px; font-weight: 600; color: var(--label2); letter-spacing: .02em; margin: 2px 0 12px;
-              display: flex; align-items: center; justify-content: space-between; }
-  .wallbtn { font-size: 11px; font-weight: 500; border: none; border-radius: 6px; padding: 3px 9px; cursor: pointer;
-             background: rgba(0,122,255,.12); color: var(--blue); }
-  .wallbtn:hover { background: rgba(0,122,255,.2); }
+  .railhead { font-size: 11px; font-weight: 600; color: var(--label2); letter-spacing: .4px; text-transform: uppercase;
+              margin: 2px 0 10px; display: flex; align-items: center; justify-content: space-between; }
+  .wallbtn { font-size: 11px; font-weight: 500; border: .5px solid rgba(0,0,0,.18); border-radius: 5px;
+             padding: 2px 9px; cursor: pointer; color: #1d1d1f;
+             background: linear-gradient(#fff, #f0f0f0); box-shadow: 0 .5px .5px rgba(0,0,0,.04); }
+  .wallbtn:hover { background: linear-gradient(#fff, #e8e8e8); }
   /* D17 app cards: their own zone under the system cards — header = drag handle + collapse toggle */
-  .sec { font-size: 12px; font-weight: 600; color: var(--label2); letter-spacing: .02em; margin: 2px 0 10px; }
+  .sec { font-size: 11px; font-weight: 600; color: var(--label2); letter-spacing: .4px; text-transform: uppercase; margin: 2px 0 10px; }
   .appgrid { display: flex; flex-direction: column; gap: 12px; }
-  .appcard { background: var(--win); border-radius: 10px; overflow: hidden;
-             box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 0 0 .5px rgba(0,0,0,.05); }
+  .appcard { background: var(--win); border-radius: 8px; overflow: hidden;
+             box-shadow: 0 0 0 .5px rgba(0,0,0,.12); }
   .appcard.dragging { opacity: .4; }
   .apphead { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: grab;
              user-select: none; border-bottom: .5px solid var(--sep); }
@@ -413,9 +419,10 @@ const PAGE = `<!doctype html>
   .tag { font-size: 11px; color: var(--label2); background: rgba(120,120,128,.10); border-radius: 6px;
          padding: 2px 7px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   /* cards: iOS inset grouped lists */
-  .card { background: var(--win); border-radius: 10px; padding: 16px; grid-column: span 1; }
+  .card { background: var(--win); border-radius: 8px; padding: 14px 16px; grid-column: span 1;
+          box-shadow: 0 0 0 .5px rgba(0,0,0,.10); }
   .card.wide { grid-column: 1 / -1; }
-  h3 { font-size: 12px; font-weight: 600; color: var(--label2); letter-spacing: .02em; margin-bottom: 10px; }
+  h3 { font-size: 11px; font-weight: 600; color: var(--label2); letter-spacing: .4px; text-transform: uppercase; margin-bottom: 10px; }
   h3 .count { color: var(--label3); font-weight: 500; margin-left: 4px; }
   table { width: 100%; border-collapse: collapse; }
   td { padding: 9px 10px; border-bottom: .5px solid var(--sep); vertical-align: top; }
@@ -435,9 +442,9 @@ const PAGE = `<!doctype html>
   .activetab { border-left: 2px solid var(--blue); margin-left: -11px; padding-left: 9px; } /* hanging rule: text stays at column 0 */
   .muted { color: var(--label2); }
   /* notification banners: iOS notification spec — 40px icon, 18px radius */
-  .notif { display: flex; gap: 12px; background: rgba(255,255,255,.92); backdrop-filter: blur(24px);
-           border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,.09), 0 0 0 .5px rgba(0,0,0,.05);
-           padding: 11px 13px; margin-bottom: 8px; }
+  .notif { display: flex; gap: 10px; background: #fff; border-radius: 10px;
+           box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 0 0 .5px rgba(0,0,0,.08);
+           padding: 10px 12px; margin-bottom: 8px; }
   .notif.slidein { animation: slidein .42s cubic-bezier(.2,.9,.25,1); }
   @keyframes slidein { from { transform: translateX(70px); opacity: 0; } to { transform: none; opacity: 1; } }
   .notif .nicon { flex: 0 0 26px; width: 26px; height: 26px; border-radius: 7px; color: #fff;
@@ -470,17 +477,17 @@ const PAGE = `<!doctype html>
   .th { font-size: 11px; color: var(--label2); font-weight: 600; border-bottom: .5px solid var(--sep); padding-bottom: 5px; }
   .foot { flex: 0 0 26px; display: flex; align-items: center; justify-content: center;
           color: var(--label3); font-size: 11px; border-top: 1px solid var(--sep); }
-  #ts { font-weight: 400; color: var(--label2); }
+  #ts { font-weight: 400; color: var(--label2); font-size: 11px; }
 </style></head>
 <body>
 <div class="win">
   <div class="titlebar">
-    <b>browser harness 看板</b>
-    <button id="srcbtn" type="button" class="wallbtn" style="margin-right:10px">部署信息</button>
+    <b>Browser Harness看板</b>
     <span class="mono" id="ts"></span>
   </div>
   <div class="layout">
     <aside class="sourcebar" id="source"></aside>
+    <div class="split" id="srcsplit" title="部署信息"><span class="splitarr" id="srcarr">◂</span></div>
     <div class="main">
       <div class="grid" id="root"><div class="card">连接中…</div></div>
     </div>
@@ -510,19 +517,21 @@ const pill = (v, cls = 'ok') => '<span class="status"><span class="sdot ' + cls 
 // 127.0.0.1 is a secure context so Notification works without https; permission is
 // granted once via the railhead button (Chrome wants a user gesture for the prompt).
 const WALL_SET = { 'challenge-stuck': '挑战卡死', 'blocked': '被拦截', 'login-wall': '登录墙', 'asset-throttled': '资源阻断', 'blank': '白屏' };
-function wallNotify(name, verdictZh, detail) {
+function wallNotify(verdictZh, pageTitle, url, advice) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return false;
   try {
-    const n = new Notification('bh 看板墙提醒：' + name + ' ' + verdictZh, {
-      body: String(detail || '站点拦截/验证：在浏览器窗口完成人工处理后自动恢复').slice(0, 160) + '\\n点击聚焦看板',
-      tag: 'bh-wall-' + name,           // same-tag replaces, no 2s-poll spam
-      requireInteraction: true          // stays in the notification center until handled
+    const title = 'bh · ' + verdictZh;
+    const body = [pageTitle, advice, url].filter(Boolean).join('\\n').slice(0, 180);
+    const n = new Notification(title, {
+      body: body || '站点拦截/验证：在浏览器窗口完成人工处理',
+      tag: 'bh-wall-' + String(url || pageTitle || verdictZh).slice(0, 80),
+      requireInteraction: true
     });
-    n.onclick = () => { window.focus(); }; // focus the dashboard only, never steal the user's tab
+    n.onclick = () => { window.focus(); };
     return true;
   } catch { return false; }
 }
-window.__bhWallNotify = wallNotify; // test hook: __bhWallNotify('x','挑战卡死','测试')
+window.__bhWallNotify = wallNotify;
 function syncWallBtn() {
   const b = document.getElementById('wallbtn');
   if (b) b.style.display = (('Notification' in window) && Notification.permission === 'default') ? '' : 'none';
@@ -549,6 +558,8 @@ function bindAppCards() {
     });
     card.addEventListener('dragend', () => { window.__appDragging = false; card.classList.remove('dragging'); });
   }
+  if (grid.dataset.dragBound) return;
+  grid.dataset.dragBound = '1';
   grid.addEventListener('dragover', e => e.preventDefault());
   grid.addEventListener('drop', e => {
     e.preventDefault();
@@ -584,7 +595,7 @@ function render(s) {
     if (WALL_SET[v]) {
       const prev = window.__wallPrev[i.name];
       if (prev !== undefined && prev !== v) {
-        wallNotify(i.name, WALL_SET[v], (i.verdict.advice || '') + ' · ' + ((i.activeTab && i.activeTab.url) || '').slice(0, 60));
+        wallNotify(WALL_SET[v], i.name, ((i.activeTab && i.activeTab.url) || ''), i.verdict.advice || '');
       }
       window.__wallPrev[i.name] = v;
       wallEntries.push({ key: i.name, label: i.name, verdict: v, advice: (i.verdict.advice || '') });
@@ -605,7 +616,7 @@ function render(s) {
       const k = a.ts + '#' + a.targetId;
       if (!window.__pwNotified.has(k)) {
         window.__pwNotified.add(k);
-        wallNotify(String(a.title || a.url || '页面').slice(0, 44), WALL_SET[a.verdict] ?? a.verdict, (a.advice || '') + ' · ' + String(a.url || '').slice(0, 60));
+        wallNotify(WALL_SET[a.verdict] ?? a.verdict, String(a.title || '页面').slice(0, 44), String(a.url || '').slice(0, 80), a.advice || '');
       }
     }
     if (window.__pwNotified.size > 200) window.__pwNotified = new Set([...window.__pwNotified].slice(-100));
@@ -622,9 +633,11 @@ function render(s) {
   h += '<div class="card wide"><h3>附着实例 <span class="count">'+s.instances.length+'</span></h3><table>';
   h += '<tr><td class="th">实例名</td><td class="th">端口</td><td class="th">进程</td><td class="th">状态</td><td class="th">运行时长</td><td class="th">操作中的 tab</td><td class="th">页面判定</td></tr>';
   for (const i of s.instances) {
-    // state semantics: default is LAZY (待命 = normal, next call revives it);
-    // a named instance being down is a real supervision failure.
-    const state = i.alive ? (i.activeTab ? pill('已附着', 'on') : pill('已脱离', 'warn'))
+    // default / page-detect idle without a pinned tab is 待命 (lazy attach).
+    // 已脱离 is for a named worker that lost its tab. Down default is still 待命.
+    const state = i.alive
+      ? (i.activeTab ? pill('已附着', 'on')
+        : (i.name === 'default' || i.name === 'page-detect' ? pill('待命', 'off') : pill('已脱离', 'warn')))
       : (i.name === 'default' ? pill('待命', 'off') : pill('已停止', 'err'));
     h += '<tr><td style="white-space:nowrap"><b>'+esc(i.name)+'</b></td>'+
          '<td class="mono muted">:'+i.port+'</td>'+
@@ -669,7 +682,7 @@ function render(s) {
     for (const m of ((st && st.metrics) || [])) {
       appsHtml += '<div class="strow"><span class="stlabel">' + esc(m.label) + '</span><span class="stval">' + esc(m.value) + '</span></div>';
     }
-    if (st && st.event && st.event.text && n !== 'x-intel') {
+    if (st && st.event && st.event.text && st.event.kind !== 'tick') {
       appsHtml += '<div class="strow"><span class="stlabel">最近事件</span><span class="stval mono" style="font-size:11px">' + esc(String(st.event.text).slice(0, 46)) + '</span></div>';
     }
     appsHtml += '</div></div>';
@@ -804,30 +817,30 @@ document.getElementById('wallbtn').onclick = async () => {
   try {
     const p = await Notification.requestPermission();
     syncWallBtn();
-    if (p === 'granted') wallNotify('default', '提醒已开启', '此后实例遇墙将以系统通知提醒你');
+    if (p === 'granted') wallNotify('提醒已开启', 'bh 看板', '', '此后遇墙将以系统通知提醒你');
   } catch { /* prompt dismissed */ }
 };
-// D17: the deploy-info bar is HIDDEN by default — app cards and the log rail
-// get the room; the 部署信息 button brings it back (preference persisted).
-document.getElementById('srcbtn').onclick = () => {
-  const bar = document.querySelector('.sourcebar');
-  if (!bar) return;
-  const hidden = bar.style.display === 'none';
-  bar.style.display = hidden ? '' : 'none';
-  lsSet('bh-srcbar-hidden', !hidden);
+function setSrcbarHidden(hidden) {
+  const layout = document.querySelector('.layout');
+  const arr = document.getElementById('srcarr');
+  if (layout) layout.classList.toggle('nosource', hidden);
+  if (arr) arr.textContent = hidden ? '▸' : '◂';
+  lsSet('bh-srcbar-hidden', hidden);
+}
+document.getElementById('srcsplit').onclick = () => {
+  const layout = document.querySelector('.layout');
+  if (!layout) return;
+  setSrcbarHidden(!layout.classList.contains('nosource'));
 };
-(function applySrcbarPref() {
-  const bar = document.querySelector('.sourcebar');
-  if (bar && lsGet('bh-srcbar-hidden', true)) bar.style.display = 'none';
-})();
+setSrcbarHidden(lsGet('bh-srcbar-hidden', true));
 const es = new EventSource('/events');
 es.onmessage = ev => { try { render(JSON.parse(ev.data)); } catch {} };
 </script>
 </body></html>`;
 
 /**
- * D19 init primitive: idempotent dashboard bring-up. Probes first (a taken
- * port or an already-running board is a no-op), spawns detached otherwise.
+ * Idempotent dashboard bring-up. Probes first (a taken port or an
+ * already-running board is a no-op), spawns detached otherwise.
  */
 export async function ensureDashboard(): Promise<'up' | 'spawned'> {
   const alive = async () => {
