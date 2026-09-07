@@ -293,7 +293,7 @@ async function dispatch(arg: string | undefined, argv: string[]): Promise<void> 
   }
   if (argv[0] === 'dashboard') {
     // Read-only web board (SSE) on 127.0.0.1: instances / attach surface /
-    // rmux supervision / worker heartbeat / page verdicts / event tail.
+    // rmux supervision / worker heartbeat / page verdicts / resident apps.
     const sub = argv[1] ?? 'start';
     const { DASHBOARD_PORT } = await import('./dashboard.js');
     const URLD = `http://127.0.0.1:${DASHBOARD_PORT}`;

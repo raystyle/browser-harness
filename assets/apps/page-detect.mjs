@@ -18,7 +18,8 @@
  *   bh page-detect status                 current tabs verdicts + recent alerts
  * The watcher read-only probes EVERY http(s) page target of the attached
  * browser, classifies each (light verdict), and records edge alerts (tab
- * entering a wall class) to <BH_HOME>/data/page-watch.json. The dashboard
+ * entering a wall class; blank only after persisting across cycles) to
+ * <BH_HOME>/data/page-watch.json. The dashboard
  * (127.0.0.1:9870) merges that state into its snapshot; its already-granted
  * Notification layer turns the edges into system alerts. Chrome notifications
  * can only originate from a page origin the user granted — the watcher
@@ -136,15 +137,17 @@ async function watchLoop(h, intervalSec) {
   const prev = new Map();
   const blankStreak = new Map();
   let lastSweepLog = 0;
+  // Shared control-plane predicate (dist host.ts): exact host+port match, so
+  // the watcher never probes the board yet never skips a lookalike local app.
+  const { importDist } = await import('./x-intel/lib.mjs');
+  const { isDashboardUrl } = await importDist('host.js');
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       // Touch the heartbeat at the start of each sweep so a long tab list
       // cannot look stale to supervisor-core mid-cycle.
       saveState(state);
-      const dashPort = process.env.BH_DASHBOARD_PORT ?? '9870';
-      const isDash = (u) => u.startsWith(`http://127.0.0.1:${dashPort}`) || u.startsWith(`http://localhost:${dashPort}`);
-      const tabs = (await h.list_tabs(false)).filter(t => /^https?:/i.test(t.url) && !isDash(t.url));
+      const tabs = (await h.list_tabs(false)).filter(t => /^https?:/i.test(t.url) && !isDashboardUrl(t.url));
       const rows = [];
       let prevSid = null;
       for (const t of tabs) {
@@ -156,9 +159,18 @@ async function watchLoop(h, intervalSec) {
         const c = classify(p, t.url);
         rows.push({ targetId: t.targetId, url: t.url.slice(0, 120), title: (p.title || '').slice(0, 60), verdict: c.verdict, advice: c.advice });
         const before = prev.get(t.targetId);
-        const alertable = WALL_CLASSES.has(c.verdict)
-          || (c.verdict === 'blank' && (blankStreak.get(t.targetId) || 0) + 1 >= BLANK_CYCLES_BEFORE_ALERT);
-        if (alertable && before !== c.verdict) {
+        // Streak FIRST: cycle 1 of a blank episode already sets prev='blank',
+        // so an edge check (before !== verdict) alone can never fire for a
+        // persistent blank. Wall classes keep edge semantics (alert when a
+        // tab ENTERS the class); blank alerts exactly once per episode, when
+        // its streak crosses the persistence threshold.
+        const blankNow = c.verdict === 'blank' ? (blankStreak.get(t.targetId) || 0) + 1 : 0;
+        if (c.verdict === 'blank') blankStreak.set(t.targetId, blankNow);
+        else blankStreak.delete(t.targetId);
+        const alertNow = WALL_CLASSES.has(c.verdict)
+          ? before !== c.verdict
+          : blankNow === BLANK_CYCLES_BEFORE_ALERT;
+        if (alertNow) {
           state.alerts.push({
             ts: new Date().toISOString(), targetId: t.targetId, url: t.url.slice(0, 120),
             title: (p.title || '').slice(0, 60), verdict: c.verdict, advice: c.advice, from: before ?? '(new)',
@@ -166,8 +178,6 @@ async function watchLoop(h, intervalSec) {
           if (state.alerts.length > 50) state.alerts.splice(0, state.alerts.length - 50);
           logLine(`[${hms()}] page-detect 告警：${(p.title || t.url || '').slice(0, 60)}（${c.verdict}）\n${c.advice}\n${t.url.slice(0, 100)}`);
         }
-        if (c.verdict === 'blank') blankStreak.set(t.targetId, (blankStreak.get(t.targetId) || 0) + 1);
-        else blankStreak.delete(t.targetId);
         prev.set(t.targetId, c.verdict);
       }
       if (prevSid) { await h.cdp('Target.detachFromTarget', { sessionId: prevSid }).catch(() => {}); prevSid = null; }
@@ -178,6 +188,9 @@ async function watchLoop(h, intervalSec) {
       const bad = rows.filter(r => r.verdict !== 'ok').length;
       writeStatus({
         state: 'running',
+        // interval is the persisted desired cadence: ensureCompanions and
+        // supervisor-core respawns read it instead of hardcoding a default.
+        interval: intervalSec,
         metrics: [
           { label: '巡检节奏', value: `${intervalSec} 秒/轮` },
           { label: '巡检覆盖', value: `${rows.length} 页` },
@@ -203,7 +216,7 @@ async function watchLoop(h, intervalSec) {
 const WATCH_SESSION = 'page-detect';
 
 async function watchStart(intervalSec) {
-  writeStatus({ state: 'running', metrics: [{ label: '巡检节奏', value: `${intervalSec} 秒/轮` }] });
+  writeStatus({ state: 'running', interval: intervalSec, metrics: [{ label: '巡检节奏', value: `${intervalSec} 秒/轮` }] });
   let via = 'detached';
   try {
     const { importDist } = await import('./x-intel/lib.mjs');
@@ -212,8 +225,17 @@ async function watchStart(intervalSec) {
     if (r.version()) {
       via = 'rmux';
       if (await r.hasSession(WATCH_SESSION)) {
-        console.log(JSON.stringify({ _ok: true, _v: VERSION, _ts: new Date().toISOString(), watching: true, supervised: 'rmux:' + WATCH_SESSION, note: 'already running' }, null, 1));
-        return 0;
+        let running = null; // cadence the live loop reports in page-watch.json
+        try { running = JSON.parse(readFileSync(STATE_FILE(), 'utf8')).interval ?? null; } catch { /* no state yet */ }
+        if (running === null || running === intervalSec) {
+          console.log(JSON.stringify({ _ok: true, _v: VERSION, _ts: new Date().toISOString(), watching: true, supervised: 'rmux:' + WATCH_SESSION, interval: running ?? intervalSec, note: 'already running' }, null, 1));
+          return 0;
+        }
+        // Different interval requested: adopting the session would silently
+        // ignore it. Kill and respawn below with the requested argv — the
+        // status written above already carries the NEW interval, so a racing
+        // supervisor beat respawns with it too.
+        await r.killSession(WATCH_SESSION);
       }
       await r.newSession(WATCH_SESSION, {
         command: `"${process.execPath}" "${process.argv[1]}" --name page-detect page-detect watch --watch-loop --interval ${intervalSec}`,
@@ -226,12 +248,28 @@ async function watchStart(intervalSec) {
       console.log(JSON.stringify({ _ok: true, _v: VERSION, _ts: new Date().toISOString(), watching: true, supervised: 'rmux:' + WATCH_SESSION, interval: intervalSec }, null, 1));
       return 0;
     }
-  } catch { /* rmux path failed: fall through to bare spawn */ }
+  } catch {
+    // rmux path failed. A racing supervisor beat may have just (re)spawned
+    // the session — that IS the watcher; never bare-spawn a second copy.
+    try {
+      const { importDist } = await import('./x-intel/lib.mjs');
+      const { Rmux } = await importDist('rmux.js');
+      if (await new Rmux().hasSession(WATCH_SESSION)) {
+        console.log(JSON.stringify({ _ok: true, _v: VERSION, _ts: new Date().toISOString(), watching: true, supervised: 'rmux:' + WATCH_SESSION, note: 'session appeared (supervisor race) — adopted' }, null, 1));
+        return 0;
+      }
+    } catch { /* rmux genuinely absent: bare spawn below */ }
+  }
   try {
     const pid = Number(readFileSync(PID_FILE(), 'utf8'));
     if (pid && process.kill(pid, 0)) {
-      console.log(JSON.stringify({ _ok: true, _v: VERSION, _ts: new Date().toISOString(), watching: true, pid, note: 'already running' }, null, 1));
-      return 0;
+      let running = null;
+      try { running = JSON.parse(readFileSync(STATE_FILE(), 'utf8')).interval ?? null; } catch { /* no state yet */ }
+      if (running === null || running === intervalSec) {
+        console.log(JSON.stringify({ _ok: true, _v: VERSION, _ts: new Date().toISOString(), watching: true, pid, interval: running ?? intervalSec, note: 'already running' }, null, 1));
+        return 0;
+      }
+      try { process.kill(pid); } catch { /* already gone */ } // respawn below at the requested cadence
     }
   } catch { /* not running */ }
   const child = spawn(process.execPath, [process.argv[1], '--name', 'page-detect', 'page-detect', 'watch', '--watch-loop', '--interval', String(intervalSec)], {

@@ -227,10 +227,11 @@ describe('fill_input (issue #2 silent swallow)', () => {
       'Runtime.evaluate': (p: any) => {
         const e = String(p.expression ?? '');
         if (e.includes('.focus()')) return { result: { value: true } };
-        if (e.includes('tagName===\'INPUT\'')) {
+        if (e.includes("tag==='INPUT'")) {
+          // Readback probe answers with the {tag, v} JSON contract.
           const v = valueSeq[Math.min(reads, valueSeq.length - 1)] ?? '';
           reads++;
-          return { result: { value: v } };
+          return { result: { value: JSON.stringify({ tag: 'INPUT', v }) } };
         }
         return { result: { value: undefined } };
       },
@@ -247,6 +248,16 @@ describe('fill_input (issue #2 silent swallow)', () => {
     const { host, calls } = evalHost(['hello']);
     await createHelpers(host).fill_input('#q', 'hello');
     assert.equal(calls.filter(c => c.method === 'Target.activateTarget').length, 0);
+  });
+
+  test('a field that merely CONTAINS the needle is not stuck (strict equality, review 7)', async () => {
+    const { host, calls } = evalHost(['hello world']);
+    // Old `includes` semantics would bless this and skip the retry.
+    await assert.rejects(
+      () => createHelpers(host).fill_input('#q', 'hello'),
+      /value did not stick/,
+    );
+    assert.ok(calls.some(c => c.method === 'Target.activateTarget'));
   });
 
   test('throws if the value never sticks', async () => {

@@ -4,6 +4,8 @@
  * Endpoints (bind 127.0.0.1:9876 by default; override with $CDP_REPL_PORT):
  *   POST /eval     body = raw JS to evaluate (NOT JSON-wrapped).
  *                  Top-level await supported. Single expression auto-returns.
+ *                  ONE snippet at a time: while one is in flight (a timed-out
+ *                  one included — it is not cancelled), new evals get 429.
  *                  Response: {"ok":true,"result":<json>} | {"ok":false,"error":..,"stack"?:..}
  *   GET  /health   {"ok":true,"uptime":<seconds>,"connected":<bool>,"sessionId":<string|null>}
  *   POST /quit     graceful shutdown. Returns {"ok":true} then exits.
@@ -68,6 +70,11 @@ function pkgVersion(): string {
 }
 const VERSION = pkgVersion();
 const startedAt = Date.now();
+
+// One snippet at a time. A timed-out eval is NOT cancelled — it keeps running
+// on this daemon — so the slot stays held until the snippet settles; a retry
+// gets 429 instead of interleaving a second eval on the same Session/globals.
+let evalInFlight: Promise<unknown> | null = null;
 
 function isExpression(code: string): boolean {
   const trimmed = code.trim();
@@ -157,13 +164,23 @@ const server = createServer(async (req, res) => {
         return text(res, 400, 'empty body\n');
       }
       const timeoutS = Number(url.searchParams.get('timeout') ?? 0);
+      if (evalInFlight) {
+        return text(res, 429, 'eval busy: a previous snippet is still running on this daemon (a timed-out eval is not cancelled). Wait for it to settle or bh --restart\n');
+      }
       try {
         const work = runSnippet(code);
+        evalInFlight = work;
+        // Release the slot when the snippet settles — including the hang case,
+        // where only bh --restart can free it (by design: never two at once).
+        work.then(
+          () => { if (evalInFlight === work) evalInFlight = null; },
+          () => { if (evalInFlight === work) evalInFlight = null; },
+        );
         const result = timeoutS > 0
           ? await Promise.race([
               work,
               new Promise((_, rej) => setTimeout(() => rej(Object.assign(
-                new Error(`eval timed out after ${timeoutS}s (snippet may still be running on the daemon; bh --restart to stop it)`),
+                new Error(`eval timed out after ${timeoutS}s (snippet may still be running on the daemon; new evals are refused until it settles; bh --restart to stop it)`),
                 { httpStatus: 504 },
               )), timeoutS * 1000)),
             ])

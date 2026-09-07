@@ -284,8 +284,9 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
    * makes Chrome type a literal "a" instead of selecting all.
    *
    * `timeout` is seconds (0 = do not wait for the element). After typing,
-   * the value is read back: a silent Chrome swallow on a never-activated
-   * background tab (issue #2) activates the tab and retries once, then throws.
+   * the value is read back (form controls must hold it EXACTLY): a real
+   * mismatch — e.g. a silent Chrome swallow on a never-activated background
+   * tab (issue #2) — activates the tab and retries once, then throws.
    */
   async function fill_input(selector: string, text: string, clear_first = true, timeout = 0) {
     return withTrace('fill_input', [selector, text.slice(0, 32), clear_first, timeout], async () => {
@@ -294,14 +295,25 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
         throw new Error(`fill_input: element not found: ${JSON.stringify(selector)}`);
       }
       const want = String(text);
-      const readValue = () => js(
-        `(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return null;`
-        + `if(e.tagName==='INPUT'||e.tagName==='TEXTAREA'||e.tagName==='SELECT')return String(e.value??'');`
-        + `return String(e.innerText||e.textContent||'');})()`,
-      );
-      const matches = (got: unknown) => {
-        const g = String(got ?? '');
-        return g === want || g.includes(want);
+      const readField = async (): Promise<{ tag: string; v: string } | null> => {
+        const raw = await js(
+          `(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return null;`
+          + `const tag=e.tagName;`
+          + `if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return JSON.stringify({tag,v:String(e.value??'')});`
+          + `return JSON.stringify({tag,v:String(e.innerText||e.textContent||'')});})()`,
+        );
+        try { return JSON.parse(String(raw)); } catch { return null; }
+      };
+      const matches = (f: { tag: string; v: string } | null) => {
+        if (!f) return false;
+        // Form controls must hold EXACTLY what we typed: `includes` would
+        // bless a field that already contained the needle (stale value, or a
+        // clear that failed) and skip the activate-retry below. Free-form
+        // elements (contenteditable) keep substring semantics — surrounding
+        // text is normal there.
+        return f.tag === 'INPUT' || f.tag === 'TEXTAREA' || f.tag === 'SELECT'
+          ? f.v === want
+          : f.v.includes(want);
       };
       const typeOnce = async () => {
         const focused = await js(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return false;e.focus();return true;})()`);
@@ -322,15 +334,15 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
         await js(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})();`);
       };
       await typeOnce();
-      if (want === '' || matches(await readValue())) return;
+      if (want === '' || matches(await readField())) return;
       const cur = await host.currentTabInfo();
       if (cur) {
         await cdp('Target.activateTarget', { targetId: cur.targetId });
         await sleep(400);
         await typeOnce();
-        if (matches(await readValue())) return;
+        if (matches(await readField())) return;
       }
-      const got = await readValue();
+      const got = await readField();
       throw new Error(`fill_input: value did not stick (got ${JSON.stringify(got)}); tab may need to be visible — activate it first`);
     });
   }

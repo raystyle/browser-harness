@@ -1,7 +1,7 @@
 /**
  * dashboard — a read-only 127.0.0.1 web board for the attach era.
  *
- * Shows, in one macOS-style page (SSE-pushed every 2s):
+ * Shows, in one macOS-style page (SSE-pushed every 1s):
  *   1. daemon instances    — health, uptime, connection, active tab
  *   2. attach surface      — every operable tab of each attached browser
  *                            (🐴 marks tabs bh operates)
@@ -29,7 +29,7 @@ export const DASHBOARD_PORT = Number(process.env.BH_DASHBOARD_PORT ?? 9870);
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 // ---------------------------------------------------------------------------
-// collectors (all read-only; rmux/detect cached to keep the 2s loop cheap)
+// collectors (all read-only; rmux/detect cached to keep the 1s loop cheap)
 // ---------------------------------------------------------------------------
 
 function instanceNames(): string[] {

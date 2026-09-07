@@ -82,6 +82,32 @@ describe('attached-target tracking (browser events as source of truth)', () => {
     const info = await harness.host.currentTabInfo();
     assert.equal(info?.targetId, 'TPAGE');
   });
+
+  test('detach without the deprecated optional targetId still clears the tracked target', async () => {
+    const { harness, emit } = harnessWith({
+      'Target.getTargetInfo': (p: any) => ({ targetInfo: { targetId: p.targetId, url: 'https://tracked.example/', title: 'Tracked' } }),
+    });
+    emit('Target.attachedToTarget', { sessionId: 's1', targetInfo: { targetId: 'T9', type: 'page' } });
+    assert.equal((await harness.host.currentTabInfo())?.targetId, 'T9');
+    // Chrome may omit the deprecated targetId — sessionId is the only
+    // guaranteed field. Missing it used to strand a stale attach forever
+    // (page-detect probes every tab, so the stale target was the last probed).
+    emit('Target.detachedFromTarget', { sessionId: 's1' });
+    assert.equal(await harness.host.currentTabInfo(), null);
+  });
+
+  test('detach discriminates by session: an unrelated session\'s detach never clears', async () => {
+    const { harness, emit } = harnessWith({
+      'Target.getTargetInfo': (p: any) => ({ targetInfo: { targetId: p.targetId, url: 'https://p.example/', title: '' } }),
+    });
+    emit('Target.attachedToTarget', { sessionId: 's-work', targetInfo: { targetId: 'TWORK', type: 'page' } });
+    emit('Target.attachedToTarget', { sessionId: 's-probe', targetInfo: { targetId: 'TPROBE', type: 'page' } });
+    // last page attach wins the tracked slot: TPROBE
+    emit('Target.detachedFromTarget', { sessionId: 's-work' }); // TWORK ≠ tracked
+    assert.equal((await harness.host.currentTabInfo())?.targetId, 'TPROBE');
+    emit('Target.detachedFromTarget', { sessionId: 's-probe' }); // the tracked one
+    assert.equal(await harness.host.currentTabInfo(), null);
+  });
 });
 
 describe('marker discipline', () => {  test('navigation on the active session re-stamps the horse marker', async () => {

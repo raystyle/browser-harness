@@ -81,6 +81,12 @@ export class Harness {
   /** Target discovery is per browser-level connection; re-armed on every connect(). */
   private discoveryOn = false;
 
+  /** sessionId -> targetId for page-type attaches. Detach matching rides the
+   *  stable REQUIRED sessionId: Target.detachedFromTarget's targetId field is
+   *  deprecated and OPTIONAL — a Chrome that omits it must not leave a stale
+   *  attach behind. Cleared on reconnect (sessions die with the WS). */
+  private pageAttachSessions = new Map<string, string>();
+
   private guardBrowserLifetime(method: string, params: any): void {
     if (method === 'Browser.close') {
       throw new Error('blocked: Browser.close — the attached browser is the user\'s; bh never closes it. Close it yourself in the browser if you want it gone.');
@@ -127,6 +133,7 @@ export class Harness {
    */
   async connect(): Promise<void> {
     this.discoveryOn = false; // fresh browser-level WS: discovery must be (re-)enabled
+    this.pageAttachSessions.clear(); // prior attach sessions died with the old WS
     const wsEnv = process.env.BH_CDP_WS;
     if (wsEnv) {
       await this.session.connect({ wsUrl: wsEnv, timeoutMs: 5_000 });
@@ -238,8 +245,12 @@ export class Harness {
    */
   private async enableTargetDiscovery(): Promise<void> {
     if (this.discoveryOn) return;
-    this.discoveryOn = true;
-    await this.rawBrowserCall('Target.setDiscoverTargets', { discover: true }, 3_000).catch(() => {});
+    // Latch only on success: a swallowed failure (Allow still pending within
+    // the 3s budget, transient CDP error) must not keep discovery dead for
+    // the whole connection — the next attachFirstPage retries it.
+    await this.rawBrowserCall('Target.setDiscoverTargets', { discover: true }, 3_000)
+      .then(() => { this.discoveryOn = true; })
+      .catch(() => {});
   }
 
   /** Target.attachToTarget flatten + default-domain enables + marker. */
@@ -289,12 +300,16 @@ export class Harness {
     // only: iframe attaches (js() isolation sessions) must not clobber it.
     if (ev.method === 'Target.attachedToTarget' && ev.params?.targetInfo?.type === 'page') {
       this.attachedTargetId = ev.params.targetInfo.targetId;
-    } else if (ev.method === 'Target.detachedFromTarget'
-      && String(ev.params?.targetId ?? '') === this.attachedTargetId) {
-      // A transient probe detaches after scanning (page-detect watches every
-      // tab). Clear the tracked target so the instance reports "not attached"
-      // until the next implicit page-level call re-attaches lazily.
-      this.attachedTargetId = undefined;
+      if (ev.params.sessionId) this.pageAttachSessions.set(String(ev.params.sessionId), ev.params.targetInfo.targetId);
+    } else if (ev.method === 'Target.detachedFromTarget' && ev.params?.sessionId) {
+      const detached = this.pageAttachSessions.get(String(ev.params.sessionId));
+      this.pageAttachSessions.delete(String(ev.params.sessionId));
+      if (detached !== undefined && detached === this.attachedTargetId) {
+        // A transient probe detaches after scanning (page-detect watches every
+        // tab). Clear the tracked target so the instance reports "not attached"
+        // until the next implicit page-level call re-attaches lazily.
+        this.attachedTargetId = undefined;
+      }
     } else if (ev.method === 'Target.targetInfoChanged'
       && String(ev.params?.targetInfo?.title ?? '').startsWith(MARKER)) {
       // A tab carrying the horse marker is ours by convention — closeable.
@@ -370,8 +385,8 @@ export class Harness {
       p = (this.session as any)._call(method, params);
       this.session.setActiveSession(saved);
     }
-    // Target.createTarget ownership is registered in Session._call (transport
-    // level) so raw session.domains evals register too — nothing to do here.
+    // Tab ownership registers at the transport (Session._call) so raw
+    // session.domains evals cannot dodge it.
     return this.withTimeout(p, budgetMs);
   }
 
@@ -382,10 +397,6 @@ export class Harness {
     });
   }
 
-  /**
-   * Healed CDP round trip. Explicit sessionIds are never silently redirected;
-   * implicit calls to a dead session re-attach the last target and retry once.
-   */
   /** If a tab still shows the horse marker, it is ours even after a daemon restart. */
   private async reclaimIfMarked(targetId: string): Promise<void> {
     if (!targetId || this.ownedTargets.has(targetId)) return;
@@ -395,6 +406,10 @@ export class Harness {
     } catch { /* unknown / gone */ }
   }
 
+  /**
+   * Healed CDP round trip. Explicit sessionIds are never silently redirected;
+   * implicit calls to a dead session re-attach the last target and retry once.
+   */
   async cdp(method: string, params: Record<string, unknown> = {}, opts: { sessionId?: string; timeoutMs?: number } = {}): Promise<any> {
     if (method === 'Target.closeTarget' && params?.targetId) {
       await this.reclaimIfMarked(String(params.targetId));

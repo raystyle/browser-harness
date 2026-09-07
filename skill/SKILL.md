@@ -55,7 +55,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 
 错误规约：`bh: <给 agent 的下一步指令>` 进 stderr + exit 1；usage 错误 exit 2。
 
-**timeout 一律是秒**（`wait_for_element(sel, 15)` = 15 秒，不是毫秒）。大于 3600 会告警并封顶 600s（常见 ms/s 混用）。长跑 `bh '<js>'` 默认 300s（`BH_EVAL_TIMEOUT`）；超时后求值可能仍在 daemon 上，停掉用 `bh --restart`。
+**timeout 一律是秒**（`wait_for_element(sel, 15)` = 15 秒，不是毫秒）。大于 3600 会告警并封顶 600s（常见 ms/s 混用）。长跑 `bh '<js>'` 默认 300s（`BH_EVAL_TIMEOUT`）；超时后求值可能仍在 daemon 上，期间新 eval 被拒（429 eval busy），等它结算或 `bh --restart` 停掉。
 
 ## 应用（L4：workspace/apps/）
 
@@ -64,12 +64,12 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 - `bh medium-search <q> [--top N] | grab <url> [--out F] | pluck [ms_search|ms_article] | ready`：medium 站内搜索与文章抓取（两步契约 cache `ms_search`/`ms_article`；正文走 DOM 提取，因 CF 对页内 `?format=json` 连续请求挂起；遇墙 CAPTCHA|WALL 如实报 exit 2）
 - `bh bing-search <q> [--top N] [--page N]`：两步契约（指标落盘，`pluck bs_search` 取数）；CAPTCHA 如实报不重试；`--limit` 等同 `--top`
 - `bh page-detect [url片段]`：页面诊断七判 + 事件证据 + 建议
-- `bh page-detect watch [--interval S] | unwatch | status`：通用页面守护（D18）：常驻只读探测附着浏览器全部 http(s) 页面，墙类边沿（含白屏持久化、资源被 CF 阻断）自动告警，通知经看板已授权源弹出；状态落 data/page-watch.json
+- `bh page-detect watch [--interval S] | unwatch | status`：通用页面守护（D18）：常驻只读探测附着浏览器全部 http(s) 页面，墙类边沿（含白屏持久化、资源被 CF 阻断）自动告警，通知经看板已授权源弹出；状态落 data/page-watch.json。`--interval` 持久化：守护与 companions 重拉沿用，请求不同节奏时重拉会话
 - `bh super-ocr [url片段] [--top N] [--save]`：扫描当前（或匹配）页，定位验证码图片并用 ppu-paddle-ocr 识别；不自动填写。合约 `_v` 1.0.0；cache 仅 `--save` 时落 `cache/super-ocr/`
 - `bh super-ocr locate [url片段]`：只定位不 OCR
 - `bh super-ocr setup`：把 ppu-paddle-ocr + onnxruntime-node 装到 `<BH_HOME>/ocr`（核心包零 runtime 依赖）
 - `bh super-ocr ready`：引擎 + 当前 tab 探活
-  - 错误决策：`NOT_FOUND` 引擎未装 → `setup`；无匹配 tab 如实列出。`CAPTCHA|WALL` 交互式拼图/滑块 → 窗口内人工完成，禁止当图片 OCR。`TIMEOUT` SDK 未就绪。`count=0` 是成功（页上没有图形验证码），不是失败。不自动填写、不自动重试。
+  - 错误决策：`NOT_FOUND` 引擎未装时先 `setup`；无匹配 tab 如实列出。`CAPTCHA|WALL` 交互式拼图/滑块请在窗口内人工完成，禁止当图片 OCR。`TIMEOUT` SDK 未就绪。`count=0` 是成功（页上没有图形验证码），不是失败。不自动填写、不自动重试。
 - `bh cookie-io export|import`：CDP 存取，默认拒绝全量导出（--domain/--all）
 - `bh x-intel [start|stop]`：X 监控（附着浏览器 + SQLite 去重库；worker 在 rmux `x-monitor`，由 supervisor-core 守护；关浏览器即暂停，只重拉 worker）
 - `bh x-intel search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器；JSON `{_ok,_v,_ts,count,items}`（`--csv` 仍出 CSV）

@@ -321,6 +321,21 @@ function companionStopped(name: string): boolean {
   }
 }
 
+/**
+ * The cadence page-detect watch persisted in its status file — guardians
+ * (this spawn AND supervisor-core respawns) follow the user's last
+ * `page-detect watch --interval S` instead of hardcoding a default.
+ */
+function companionInterval(name: string): number {
+  try {
+    const v = JSON.parse(readFileSync(path.join(dataDir(), `${name}.status.json`), 'utf8')).interval;
+    if (typeof v === 'number' && v > 0) return v;
+  } catch {
+    /* absent — default below */
+  }
+  return 10;
+}
+
 function supervisorEntry(): string {
   const ws = path.join(workspaceDir(), 'apps', 'supervisor-core.mjs');
   if (existsSync(ws)) return ws;
@@ -367,7 +382,7 @@ async function ensureCompanions(): Promise<void> {
         process.stderr.write('bh: companion page-detect has no watch subcommand — run `bh skill sync`\n');
       } else if (!companionStopped('page-detect')) {
         await rmux.ensureSession('page-detect', {
-          command: `"${process.execPath}" "${path.join(DIST_DIR, 'cli.js')}" --name page-detect page-detect watch --watch-loop --interval 10`,
+          command: `"${process.execPath}" "${path.join(DIST_DIR, 'cli.js')}" --name page-detect page-detect watch --watch-loop --interval ${companionInterval('page-detect')}`,
           readyTimeout: 10,
         });
       }

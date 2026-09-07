@@ -59,10 +59,14 @@ export function dashboardPort(): string {
 
 export function isDashboardUrl(url: string): boolean {
   const port = dashboardPort();
-  const u = String(url ?? '');
-  return u.startsWith(`http://127.0.0.1:${port}`)
-    || u.startsWith(`http://localhost:${port}`)
-    || u.startsWith(`http://[::1]:${port}`);
+  let u: URL;
+  try { u = new URL(String(url ?? '')); } catch { return false; }
+  // Exact origin match: a startsWith on the origin string would also swallow
+  // e.g. http://127.0.0.1:98700 — a LONGER port a local app may legitimately
+  // occupy — and refuse it as if it were the control plane.
+  return u.protocol === 'http:'
+    && (u.hostname === '127.0.0.1' || u.hostname === 'localhost' || u.hostname === '[::1]')
+    && u.port === port;
 }
 
 export function dashboardForbiddenMsg(): string {

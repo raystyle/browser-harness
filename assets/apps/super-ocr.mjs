@@ -50,7 +50,9 @@ function failJson(error, code = 1) {
 function exitOf(error) {
   if (/^CAPTCHA\|WALL:/.test(error)) return 2;
   if (/^TIMEOUT:/.test(error)) return 4;
-  if (/^NOT_FOUND:/.test(error)) return 1;
+  // G002 command-layer contract: NOT_FOUND is a classified miss (engine not
+  // installed / no matching tab), not a generic crash.
+  if (/^NOT_FOUND:/.test(error)) return 3;
   return 1;
 }
 
@@ -168,15 +170,14 @@ async function setup() {
   return 0;
 }
 
-function isDash(url) {
-  try { return /^https?:\/\/127\.0\.0\.1:9870(?:\/|$)/i.test(String(url || '')); }
-  catch { return false; }
-}
-
 async function attachTab(h, want) {
+  // Shared control-plane predicate (dist host.ts) — exact host+port match,
+  // honors BH_DASHBOARD_PORT; never mistake a lookalike local app for the board.
+  const { importDist } = await import('./x-intel/lib.mjs');
+  const { isDashboardUrl } = await importDist('host.js');
   if (want) {
     const tabs = await h.list_tabs(false);
-    const tab = tabs.find(t => !isDash(t.url) && String(t.url).includes(want));
+    const tab = tabs.find(t => !isDashboardUrl(t.url) && String(t.url).includes(want));
     if (!tab) {
       const listed = tabs.map(t => String(t.url).slice(0, 50)).join(' | ') || '(none)';
       throw new Error(`NOT_FOUND: no open tab matches ${JSON.stringify(want)} — open tabs: ${listed}`);
@@ -184,7 +185,7 @@ async function attachTab(h, want) {
     await h.switch_tab(tab.targetId, false);
   }
   const cur = await h.current_tab();
-  if (isDash(cur.url)) throw new Error('AUTHORIZATION: 看板页不是工作 tab，换到目标站点再跑 super-ocr');
+  if (isDashboardUrl(cur.url)) throw new Error('AUTHORIZATION: 看板页不是工作 tab，换到目标站点再跑 super-ocr');
   return cur;
 }
 

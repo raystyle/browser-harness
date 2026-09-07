@@ -73,6 +73,19 @@ function distDir() {
   return null;
 }
 
+/**
+ * The cadence page-detect watch persisted in its status file — a respawn
+ * follows the user's last `page-detect watch --interval S` instead of
+ * resetting to a hardcoded default.
+ */
+function pageDetectInterval() {
+  try {
+    const v = JSON.parse(readFileSync(path.join(dataDir(), 'page-detect.status.json'), 'utf8')).interval;
+    if (typeof v === 'number' && v > 0) return v;
+  } catch { /* absent */ }
+  return 10;
+}
+
 function workspaceDir() {
   return process.env.BH_BROWSER_WORKSPACE
     ?? path.join(bhHome(), 'browser-workspace');
@@ -104,7 +117,7 @@ const SUPERVISED = [
     session: 'page-detect',
     heartbeat: 'page-watch.json',
     timeout: 60,
-    command: () => `"${process.execPath}" "${cliJs()}" --name page-detect page-detect watch --watch-loop --interval 10`,
+    command: () => `"${process.execPath}" "${cliJs()}" --name page-detect page-detect watch --watch-loop --interval ${pageDetectInterval()}`,
   },
   {
     name: 'x-intel',

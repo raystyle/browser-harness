@@ -7,7 +7,7 @@
  * Usage: bh x-intel [start]    start the worker (idempotent)
  *        bh x-intel stop|close stop worker + dedicated daemon
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { importDist, bhHome, dataDir } from './x-intel/lib.mjs';
@@ -95,6 +95,20 @@ export async function main(argv = [], ctx) {
       command: workerCommand(),
       readyTimeout: 20,
     });
+    // Cold-boot guardian: runPlugin skips ensureDaemon for selfManaged apps,
+    // and the x-intel named daemon never spawns companions either — without
+    // this, a worker that dies on a fresh machine stays dead. Idempotent.
+    try {
+      const supervisor = path.join(path.dirname(fileURLToPath(import.meta.url)), 'supervisor-core.mjs');
+      if (existsSync(supervisor)) {
+        await rmux.ensureSession('supervisor-core', {
+          command: `"${process.execPath}" "${supervisor}"`,
+          readyTimeout: 10,
+        });
+      } else {
+        process.stderr.write('bh: supervisor-core missing from workspace — run `bh skill sync`（worker 暂时无人守护）\n');
+      }
+    } catch { /* best-effort: the worker itself is already up */ }
     console.log('x-intel running (worker in rmux session "x-monitor"; supervisor-core heals it; db at <BH_HOME>/data/x_tweets.db)');
     return 0;
   } catch (e) {

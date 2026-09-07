@@ -78,7 +78,7 @@
 
 | 编号 | 分类文件 | 覆盖关键词 | 行级编号段 |
 | --- | --- | --- | --- |
-| M101 | `docs/mistakes/M101-移植与平台补齐踩坑.md` | WebSocket 空消息、node--test glob、DevToolsActivePort、Input 挂起、ffmpeg 缺失、浏览器发现 Edge 兜底、锁偷活锁、页面 SDK 四连环坑 | M001-M008 |
+| M101 | `docs/mistakes/M101-移植与平台补齐踩坑.md` | WebSocket 空消息、node--test glob、DevToolsActivePort、Input 挂起、ffmpeg 缺失、浏览器发现 Edge 兜底、锁偷活锁、页面 SDK 四连环坑、白屏边沿告警永不触发、detach 废弃可选 targetId 当匹配键 | M001-M008, M017-M018 |
 | M102 | `docs/mistakes/M102-插件应用与REPL使用踩坑.md` | 多语句片段无 return 静默空输出、模板字面量 \n/反引号被外层解释、js() 吞页内异常、CF 对页内 format=json tarpit、Medium 过墙后搜索会话限流、supervisor 把缺心跳当 stale、ppu-paddle-ocr Windows 路径当 Canvas、fnm 下 spawn npm.cmd 失败 | M009-M013, M015-M016 |
 | M103 | `docs/mistakes/M103-开发与安装验收踩坑.md` | 开发态 .bh-dev 与安装态 ~/.config/browser-harness 混用，仓库 dashboard 读空 data，应用监控台不刷新 | M014 |
 
