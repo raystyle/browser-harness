@@ -32,14 +32,15 @@
 
 ## 进程
 
+- D11 触发版复验已闭环（x.com 标题徽章 14s 内收割 +9，库存 1012）
 - D25 super-ocr 已交付（扫描定位 + PaddleOCR；fixture K8M2）
 - D22/D23/D24 已交付（bing G002、x-intel 合约、极限测试）
-- D11 验收冒烟仍未关：x-monitor 触发版待复验
 
 ## 历史
 
 | 日期 | 目标 | 结果 |
 | --- | --- | --- |
+| 2026-09-07 | D11 触发版复验 | 达成：x.com/home 标题 `(1)`，x-intel 启动 14s 内收割入库 +9（1003→1012），非 5min 兜底 |
 | 2026-09-07 | D25 super-ocr 验证码图识别 | 达成：扫描当前页定位验证码图 + ppu-paddle-ocr；fixture 识别 K8M2；交互式拼图 CAPTCHA\|WALL |
 | 2026-09-07 | D22 bing-search G002 | 达成：__bs + bs_search；实搜 5 条 title 非空 |
 | 2026-09-07 | D23 x-intel search/harvest 合约 | 达成：固定形 JSON；stats 604 帖 |

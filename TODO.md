@@ -13,8 +13,8 @@
 | discovery 模块设计与实现 | 已完成 | 候选表补 Chrome Dev/Beta（三平台）、排除 Edge；harness 默认路径改发现附着（每候选 30s 等 Allow）；空态如实报 + chrome://inspect 指引 [实证: 真机 doctor attachable + current_tab 附着成功] | PLAN #3 |
 | 移除 spawn 家族 | 已完成 | 删 agentChrome.ts/taskIsolation.ts/locks.ts 与 bh chrome、chrome-mode、--once/--batch；dist 陈旧产物清理；src 零残留（仅注释性记录） [实证: grep 验证] | PLAN #4 |
 | 专属 tab 铁律 + 显式授权落地 | 已完成 | attachFirstPage 统一策略：马标记 -> 空白孤儿 -> 后台新建（background:true），永不选用户真实页面；用户 tab 操作走显式 switch_tab/set_session；单测三连锁定 [实证: 48 用例含铁律三连] | PLAN #5 |
-| x-monitor 改造 | 收割闭环已实证，事件触发版待复验 | 去spawn+预检完成；实跑修复 7 处（attachedTargetId 事件跟踪、ensureDaemon 双假就绪、失败轮 5s 重试、Chrome 155 DOM 序列化、弹窗机枪改指数退避、daemon 首连失败不退出）；收割实证 +38 入库 x_tweets.db；触发模型按用户裁定改为 5s pill 探测自动触发（5min 兜底、60s 最小间隔、阅读中不清扫）；窗口操纵代码整段删除（运行期零 setWindowBounds/activate，硬规则入 SKILL：只关自有 tab，绝不关用户 tab 与附着浏览器）；用户浏览器曾被 Chrome Dev 自身崩溃带走（事件日志 0xc0000409，与 bh 无关），重开浏览器后待复验触发版 | PLAN #5 |
-| 验收冒烟 + 文档同步 | 进行中 | 附着/共存/授权/空态四景已实测；x-monitor 景差最后一轮（harvest 入库 db）；README/SKILL/R001/CHANGELOG 已同步 | PLAN #6 |
+| x-monitor 改造 | 已完成 | 去spawn+预检完成；触发模型 5s 探测（标题徽章/pill）自动收割，5min 兜底。触发版复验：x.com/home 标题 `(1)`，启动 14s 内刷新，页面 15 帖新入库 9，库存 1003→1012 [实证: 2026-09-07 21:51:48 启动 / 21:52:02 入库，非 300s 兜底] | PLAN #5 |
+| 验收冒烟 + 文档同步 | 已完成 | 附着/共存/授权/空态四景已实测；触发版收割入库闭环 | PLAN #6 |
 
 ## D22 任务清单
 
