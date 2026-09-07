@@ -9,6 +9,22 @@ import { envNumber } from './env.js';
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
+/** Wait-helper timeouts are seconds. Values > 3600 are almost always a ms/s mix-up (issue #2). */
+const TIMEOUT_WARN_S = 3600;
+const TIMEOUT_CAP_S = 600;
+
+/** Normalize a wait timeout: seconds in, seconds out. Warn + cap when the value looks like milliseconds. */
+export function timeoutSeconds(raw: number, label: string): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return n;
+  if (n > TIMEOUT_WARN_S) {
+    const capped = Math.min(n, TIMEOUT_CAP_S);
+    process.stderr.write(`bh: ${label} timeout=${n} is in seconds (${(n / 3600).toFixed(1)}h). Did you pass milliseconds? Capping at ${capped}s.\n`);
+    return capped;
+  }
+  return n;
+}
+
 const INTERNAL = ['chrome://', 'chrome-untrusted://', 'devtools://', 'chrome-extension://', 'about:'];
 
 export type Tab = { targetId: string; target_id: string; url: string; title: string };
@@ -266,28 +282,56 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
    * Clearing dispatches SelectAll directly — NOT via press_key, which always
    * emits a `char` event for single-char keys; with Ctrl/Cmd held that char
    * makes Chrome type a literal "a" instead of selecting all.
+   *
+   * `timeout` is seconds (0 = do not wait for the element). After typing,
+   * the value is read back: a silent Chrome swallow on a never-activated
+   * background tab (issue #2) activates the tab and retries once, then throws.
    */
   async function fill_input(selector: string, text: string, clear_first = true, timeout = 0) {
     return withTrace('fill_input', [selector, text.slice(0, 32), clear_first, timeout], async () => {
-      if (timeout > 0 && !(await wait_for_element(selector, timeout))) {
+      const waitS = timeoutSeconds(timeout, 'fill_input');
+      if (waitS > 0 && !(await wait_for_element(selector, waitS))) {
         throw new Error(`fill_input: element not found: ${JSON.stringify(selector)}`);
       }
-      const focused = await js(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return false;e.focus();return true;})()`);
-      if (!focused) throw new Error(`fill_input: element not found: ${JSON.stringify(selector)}`);
-      if (clear_first) {
-        const mods = await _select_all_modifier();
-        const selectAll: Record<string, unknown> = {
-          key: 'a', code: 'KeyA', modifiers: mods,
-          windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65,
-          commands: ['SelectAll'],
-        };
-        await cdp('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...selectAll });
-        const { commands: _c, ...upParams } = selectAll;
-        await cdp('Input.dispatchKeyEvent', { type: 'keyUp', ...upParams });
-        await press_key('Backspace');
+      const want = String(text);
+      const readValue = () => js(
+        `(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return null;`
+        + `if(e.tagName==='INPUT'||e.tagName==='TEXTAREA'||e.tagName==='SELECT')return String(e.value??'');`
+        + `return String(e.innerText||e.textContent||'');})()`,
+      );
+      const matches = (got: unknown) => {
+        const g = String(got ?? '');
+        return g === want || g.includes(want);
+      };
+      const typeOnce = async () => {
+        const focused = await js(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return false;e.focus();return true;})()`);
+        if (!focused) throw new Error(`fill_input: element not found: ${JSON.stringify(selector)}`);
+        if (clear_first) {
+          const mods = await _select_all_modifier();
+          const selectAll: Record<string, unknown> = {
+            key: 'a', code: 'KeyA', modifiers: mods,
+            windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65,
+            commands: ['SelectAll'],
+          };
+          await cdp('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...selectAll });
+          const { commands: _c, ...upParams } = selectAll;
+          await cdp('Input.dispatchKeyEvent', { type: 'keyUp', ...upParams });
+          await press_key('Backspace');
+        }
+        for (const ch of text) await press_key(ch);
+        await js(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})();`);
+      };
+      await typeOnce();
+      if (want === '' || matches(await readValue())) return;
+      const cur = await host.currentTabInfo();
+      if (cur) {
+        await cdp('Target.activateTarget', { targetId: cur.targetId });
+        await sleep(400);
+        await typeOnce();
+        if (matches(await readValue())) return;
       }
-      for (const ch of text) await press_key(ch);
-      await js(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})();`);
+      const got = await readValue();
+      throw new Error(`fill_input: value did not stick (got ${JSON.stringify(got)}); tab may need to be visible — activate it first`);
     });
   }
 
@@ -503,8 +547,9 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
   // --- wait judges ----------------------------------------------------------
 
   /** readyState polling; a lost evaluate is "unknown", never failure — this wait's own deadline is the verdict. */
+  /** `timeout` is seconds. */
   async function wait_for_load(timeout = 20): Promise<boolean> {
-    const deadline = Date.now() + timeout * 1000;
+    const deadline = Date.now() + timeoutSeconds(timeout, 'wait_for_load') * 1000;
     while (Date.now() < deadline) {
       try {
         if ((await js('document.readyState')) === 'complete') return true;
@@ -520,6 +565,7 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
    * would misread "stable" as "frozen" — while a frozen renderer stops even
    * its timers. Quiet + ticking timer = stable; quiet + dead timer = frozen.
    */
+  /** `timeout` is seconds. `stable_ms` is milliseconds of quiet mutations. */
   async function wait_for_render(timeout = 10, stable_ms = 400): Promise<boolean> {
     await js(`(()=>{
       if (window.__bh_render) return true;
@@ -530,7 +576,7 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
       setInterval(() => { s.ticks++; }, 100);
       return true;
     })()`).catch(() => {});
-    const deadline = Date.now() + timeout * 1000;
+    const deadline = Date.now() + timeoutSeconds(timeout, 'wait_for_render') * 1000;
     while (Date.now() < deadline) {
       try {
         const st = await js('JSON.stringify(window.__bh_render ? {q:(Date.now()-window.__bh_render.lastMutation),t:window.__bh_render.ticks} : null)');
@@ -544,8 +590,9 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
     return false;
   }
 
+  /** `timeout` is seconds. */
   async function wait_for_element(selector: string, timeout = 10, visible = false): Promise<boolean> {
-    const deadline = Date.now() + timeout * 1000;
+    const deadline = Date.now() + timeoutSeconds(timeout, 'wait_for_element') * 1000;
     const expr = visible
       ? `(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return false;return e.checkVisibility?e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}):!!(e.offsetWidth||e.offsetHeight);})()`
       : `!!document.querySelector(${JSON.stringify(selector)})`;
@@ -563,6 +610,7 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
    * session (background tabs' Network events don't count). Documented failure
    * modes: long-poll/SSE/analytics beacons never idle; idle ≠ rendered.
    */
+  /** `timeout` is seconds. `idle_ms` is milliseconds of no in-flight requests. */
   async function wait_for_network_idle(timeout = 8, idle_ms = 500): Promise<boolean> {
     const active = await host.activeSessionId();
     const inflight = new Set<string>();
@@ -574,7 +622,7 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
       else if (e.method === 'Network.loadingFinished' || e.method === 'Network.loadingFailed') { if (rid) inflight.delete(rid); lastActivity = Date.now(); }
       else if (e.method.startsWith('Network.')) lastActivity = Date.now();
     }
-    const deadline = Date.now() + timeout * 1000;
+    const deadline = Date.now() + timeoutSeconds(timeout, 'wait_for_network_idle') * 1000;
     while (Date.now() < deadline) {
       await sleep(250);
       for (const e of await drain_events()) {

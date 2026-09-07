@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { Harness } from './harness.js';
 import { Session } from './session.js';
+import { MARKER_PREFIX } from './host.js';
 
 /**
  * Session with a fake WebSocket: every send is dispatched through a
@@ -206,6 +207,32 @@ describe('dedicated-tab attach policy (D11 coexistence iron rule)', () => {
     const r = await (harness as any).attachFirstPage();
     assert.equal(r.targetId, 'TBLANK'); // blank first; marked tabs may belong to another app
     assert.equal(sent.some(m => m.method === 'Target.createTarget'), false);
+  });
+
+  test('closeTarget reclaims a horse-marked tab without attachFirstPage (issue #1 restart)', async () => {
+    const { harness } = harnessWith({
+      'Target.getTargetInfo': (p: any) => ({
+        targetInfo: { targetId: p.targetId, title: p.targetId === 'TMARK' ? MARKER_PREFIX + 'Example' : 'News' },
+      }),
+    });
+    await harness.cdp('Target.closeTarget', { targetId: 'TMARK' });
+    await assert.rejects(
+      harness.cdp('Target.closeTarget', { targetId: 'TUSER' }),
+      /blocked: Target\.closeTarget on TUSER/,
+    );
+  });
+
+  test('attachFirstPage reclaims horse-marked tabs into ownedTargets (issue #1 restart)', async () => {
+    const { harness } = withPages([
+      { targetId: 'TMARK', url: 'https://example.com/', title: MARKER_PREFIX + 'Example' },
+      { targetId: 'TUSER', url: 'https://news.example/', title: 'News' },
+    ]);
+    await (harness as any).attachFirstPage();
+    await harness.cdp('Target.closeTarget', { targetId: 'TMARK' });
+    await assert.rejects(
+      harness.cdp('Target.closeTarget', { targetId: 'TUSER' }),
+      /blocked: Target\.closeTarget on TUSER/,
+    );
   });
 });
 

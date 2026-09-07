@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+- **issue #1/#2**：daemon 重启后认领马标记 tab 进 ownedTargets；`fill_input` 填后回读，吞掉则 activate 重试；`/eval?timeout=` + CLI `BH_EVAL_TIMEOUT`（默认 300s），超时提示 daemon 上可能仍在跑；wait/fill 的 timeout 单位为秒，>3600 告警并封顶 600s
 - **super-ocr 验证码图识别（D25）**：扫描当前网页定位验证码图片，用 ppu-paddle-ocr 识别（不自动填写）；交互式拼图/滑块如实报 CAPTCHA\|WALL；引擎按需安装到 `<BH_HOME>/ocr`
 - **ffmpeg 探测与 mp4 导出**：合并 Windows 用户 PATH（agent 进程也能找到 `D:\ohmyenv\ffmpeg\bin`）；ffmpeg 9 改 `-fps_mode vfr`（`-vsync` 已删除）
 - **看板左侧栏**：去掉标题栏「部署信息」按钮，改为主区左侧分割条箭头收起/展开
@@ -11,7 +12,8 @@
 - **墙通知文案**：标题 `bh · <判定>`，正文三行（页面 / 原因 / 地址）
 - **bing-search G002 升级（D22）**：常驻 `__bs` SDK + 就绪判官 + 两步契约 `bs_search`；墙走 CAPTCHA\|WALL 不重试；修 title 偶发空（M004）
 - **x-intel search/harvest 合约对齐（D23）**：JSON 固定形 `_ok/_v/_ts`；空库 count=0；harvest 完成打指标不打正文
-- **监督面纠偏**：supervisor-core 不再把缺心跳当 stale（冷启动/unwatch 不再误杀 page-detect）；`unwatch` 写 stopped 后 ensureCompanions / supervisor 都跳过；init companions 先 provisionWorkspace 再拉起；x-intel 仍自管监督（避免双循环竞态）
+- **supervisor-core 通用守护**：监督 page-detect 与 x-intel worker；删掉 x-intel 内嵌 supervisor / rmux `x-supervisor`。`bh x-intel start` 只拉 `x-monitor` worker，stop 先写 stopped 再杀 worker。按需应用（x-intel）未启动不拉起
+- **监督面纠偏**：supervisor-core 不再把缺心跳当 stale（冷启动/unwatch 不再误杀 page-detect）；`unwatch` 写 stopped 后 ensureCompanions / supervisor 都跳过；init companions 先 provisionWorkspace 再拉起
 - **X 监控应用定名为 x-intel**：去掉旧名与 CLI 别名；workspace 退役旧入口与组件目录
 - **看板**：lazy 未附着显示待命（不再误报已脱离）；应用卡拖放监听只绑一次；最近事件按契约渲染（x-intel 零入库不写 event）
 - **medium-search 插件应用（D15）**：medium.com 站内搜索 + 文章抓取（SDK `__ms` 常驻 + 两步契约 `ms_search`/`ms_article` + 人机共存 tab 策略）；G002 六门禁验收，墙场景被真 CF 挑战实证

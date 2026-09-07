@@ -32,6 +32,7 @@
 
 ## 进程
 
+- D26 GitHub #1/#2 已修并关单（close_tab 认领马标记；fill_input 回读；eval 超时提示）
 - D11 触发版复验已闭环（x.com 标题徽章 14s 内收割 +9，库存 1012）
 - D25 super-ocr 已交付（扫描定位 + PaddleOCR；fixture K8M2）
 - D22/D23/D24 已交付（bing G002、x-intel 合约、极限测试）

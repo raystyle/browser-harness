@@ -26,6 +26,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { derivedPort, instanceName, logFile } from './paths.js';
 import { homeDir, dataDir } from './paths.js';
+import { envNumber } from './env.js';
 
 // Materialize the resolved BH_HOME into env so spawned daemons and in-process
 // plugins (which cannot replicate dev-checkout detection) agree with us.
@@ -84,11 +85,18 @@ async function startRepl(): Promise<void> {
  * on 200; otherwise to stderr with non-zero exit.
  */
 async function postEval(code: string): Promise<void> {
+  const timeoutS = envNumber('BH_EVAL_TIMEOUT', 300);
+  const url = `${URL_}/eval?timeout=${timeoutS}`;
   let res: Response;
   try {
-    res = await fetch(`${URL_}/eval`, { method: 'POST', body: code });
+    res = await fetch(url, { method: 'POST', body: code, signal: AbortSignal.timeout((timeoutS + 5) * 1000) });
   } catch (e: any) {
-    process.stderr.write(`bh: ${e?.message ?? e}\n`);
+    const msg = String(e?.message ?? e);
+    if (/aborted|timeout|TimeoutError/i.test(msg) || e?.name === 'TimeoutError') {
+      process.stderr.write(`bh: /eval 请求超时（${timeoutS}s）。求值可能仍在 daemon 上运行；要停掉请 \`bh --restart\`。BH_EVAL_TIMEOUT=秒 可改超时。\n`);
+    } else {
+      process.stderr.write(`bh: ${msg}（daemon 无响应？先 bh doctor / bh --status）\n`);
+    }
     process.exit(1);
   }
   const body = await res.text();

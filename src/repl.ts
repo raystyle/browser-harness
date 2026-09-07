@@ -156,13 +156,24 @@ const server = createServer(async (req, res) => {
       if (!code.trim()) {
         return text(res, 400, 'empty body\n');
       }
+      const timeoutS = Number(url.searchParams.get('timeout') ?? 0);
       try {
-        const result = await runSnippet(code);
+        const work = runSnippet(code);
+        const result = timeoutS > 0
+          ? await Promise.race([
+              work,
+              new Promise((_, rej) => setTimeout(() => rej(Object.assign(
+                new Error(`eval timed out after ${timeoutS}s (snippet may still be running on the daemon; bh --restart to stop it)`),
+                { httpStatus: 504 },
+              )), timeoutS * 1000)),
+            ])
+          : await work;
         const body = renderResult(result);
         return text(res, 200, body);
       } catch (e: any) {
+        const status = Number(e?.httpStatus) === 504 ? 504 : 500;
         const msg = (e?.stack ?? e?.message ?? String(e)) + '\n';
-        return text(res, 500, msg);
+        return text(res, status, msg);
       }
     }
 

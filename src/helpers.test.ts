@@ -1,7 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createHelpers } from './helpers.js';
+import { createHelpers, timeoutSeconds } from './helpers.js';
 import { MARKER_PREFIX, type Host } from './host.js';
 
 type Call = { method: string; params: any; opts: any };
@@ -194,6 +194,67 @@ describe('js evaluation', () => {
     assert.ok(calls.some(c => c.method === 'Runtime.attachToTarget') === false);
     assert.ok(calls.some(c => c.method === 'Runtime.evaluate' && c.opts?.sessionId === 'iframe-sess'));
     assert.ok(calls.some(c => c.method === 'Target.detachFromTarget' && c.params.sessionId === 'iframe-sess'));
+  });
+});
+
+describe('timeoutSeconds (issue #2)', () => {
+  test('leaves ordinary second values alone', () => {
+    assert.equal(timeoutSeconds(15, 'wait_for_element'), 15);
+    assert.equal(timeoutSeconds(0, 'fill_input'), 0);
+  });
+
+  test('caps millisecond-looking values and warns', () => {
+    const writes: string[] = [];
+    const orig = process.stderr.write.bind(process.stderr);
+    (process.stderr.write as any) = (chunk: any, ...rest: any[]) => {
+      writes.push(String(chunk));
+      return orig(chunk, ...rest);
+    };
+    try {
+      assert.equal(timeoutSeconds(15000, 'wait_for_element'), 600);
+      assert.ok(writes.some(w => /timeout=15000 is in seconds/.test(w)));
+    } finally {
+      (process.stderr.write as any) = orig;
+    }
+  });
+});
+
+describe('fill_input (issue #2 silent swallow)', () => {
+  function evalHost(valueSeq: string[]) {
+    let reads = 0;
+    return fakeHost({
+      'Browser.getVersion': () => ({ userAgent: 'Mozilla/5.0 Windows' }),
+      'Runtime.evaluate': (p: any) => {
+        const e = String(p.expression ?? '');
+        if (e.includes('.focus()')) return { result: { value: true } };
+        if (e.includes('tagName===\'INPUT\'')) {
+          const v = valueSeq[Math.min(reads, valueSeq.length - 1)] ?? '';
+          reads++;
+          return { result: { value: v } };
+        }
+        return { result: { value: undefined } };
+      },
+    });
+  }
+
+  test('retries after activateTarget when the first value read is empty', async () => {
+    const { host, calls } = evalHost(['', 'hello']);
+    await createHelpers(host).fill_input('#q', 'hello');
+    assert.ok(calls.some(c => c.method === 'Target.activateTarget' && c.params.targetId === 't1'));
+  });
+
+  test('does not activate when the value already stuck', async () => {
+    const { host, calls } = evalHost(['hello']);
+    await createHelpers(host).fill_input('#q', 'hello');
+    assert.equal(calls.filter(c => c.method === 'Target.activateTarget').length, 0);
+  });
+
+  test('throws if the value never sticks', async () => {
+    const { host } = evalHost(['', '']);
+    await assert.rejects(
+      () => createHelpers(host).fill_input('#q', 'hello'),
+      /value did not stick/,
+    );
   });
 });
 

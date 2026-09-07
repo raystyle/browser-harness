@@ -206,6 +206,11 @@ export class Harness {
     await this.enableTargetDiscovery();
     const { targetInfos } = await this.rawBrowserCall('Target.getTargets', {}) as { targetInfos: Array<{ targetId: string; type: string; url: string; title: string }> };
     const pages = targetInfos.filter(t => t.type === 'page' && !this.isControlPlane(t.url));
+    // Daemon restart wipes in-memory ownedTargets (issue #1 comment). Any tab
+    // still carrying the horse marker is ours — reclaim so close_tab works.
+    for (const t of pages) {
+      if ((t.title ?? '').startsWith(MARKER)) this.ownedTargets.add(t.targetId);
+    }
 
     // App daemons pin their working surface: BH_ATTACH_URL_MATCH (substring)
     // prefers an EXISTING page over creating a dedicated blank — in the
@@ -381,7 +386,19 @@ export class Harness {
    * Healed CDP round trip. Explicit sessionIds are never silently redirected;
    * implicit calls to a dead session re-attach the last target and retry once.
    */
+  /** If a tab still shows the horse marker, it is ours even after a daemon restart. */
+  private async reclaimIfMarked(targetId: string): Promise<void> {
+    if (!targetId || this.ownedTargets.has(targetId)) return;
+    try {
+      const r = await this.rawBrowserCall('Target.getTargetInfo', { targetId }, 3_000) as { targetInfo?: { title?: string } };
+      if (String(r.targetInfo?.title ?? '').startsWith(MARKER)) this.ownedTargets.add(targetId);
+    } catch { /* unknown / gone */ }
+  }
+
   async cdp(method: string, params: Record<string, unknown> = {}, opts: { sessionId?: string; timeoutMs?: number } = {}): Promise<any> {
+    if (method === 'Target.closeTarget' && params?.targetId) {
+      await this.reclaimIfMarked(String(params.targetId));
+    }
     const browserLevel = method.startsWith('Browser.') || method.startsWith('Target.') || method.startsWith('Extensions.');
     if (!browserLevel && !opts.sessionId && !this.session.getActiveSession()) {
       await this.attachFirstPage();

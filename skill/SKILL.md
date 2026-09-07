@@ -55,6 +55,8 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 
 错误规约：`bh: <给 agent 的下一步指令>` 进 stderr + exit 1；usage 错误 exit 2。
 
+**timeout 一律是秒**（`wait_for_element(sel, 15)` = 15 秒，不是毫秒）。大于 3600 会告警并封顶 600s（常见 ms/s 混用）。长跑 `bh '<js>'` 默认 300s（`BH_EVAL_TIMEOUT`）；超时后求值可能仍在 daemon 上，停掉用 `bh --restart`。
+
 ## 应用（L4：workspace/apps/）
 
 - `bh web-fetch <url>`：HTTP 优先，空/墙词/正文<20 词三条件升级浏览器
@@ -69,7 +71,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 - `bh super-ocr ready`：引擎 + 当前 tab 探活
   - 错误决策：`NOT_FOUND` 引擎未装 → `setup`；无匹配 tab 如实列出。`CAPTCHA|WALL` 交互式拼图/滑块 → 窗口内人工完成，禁止当图片 OCR。`TIMEOUT` SDK 未就绪。`count=0` 是成功（页上没有图形验证码），不是失败。不自动填写、不自动重试。
 - `bh cookie-io export|import`：CDP 存取，默认拒绝全量导出（--domain/--all）
-- `bh x-intel [start|stop]`：X 监控（附着浏览器 + rmux 自愈监督 + SQLite 去重库；关浏览器即暂停，只重拉 worker）
+- `bh x-intel [start|stop]`：X 监控（附着浏览器 + SQLite 去重库；worker 在 rmux `x-monitor`，由 supervisor-core 守护；关浏览器即暂停，只重拉 worker）
 - `bh x-intel search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器；JSON `{_ok,_v,_ts,count,items}`（`--csv` 仍出 CSV）
 - `bh x-intel harvest <q> --from --to`：时间分片全量收割；完成打指标 `{_ok,inserted,slices,db}`
 
@@ -107,7 +109,7 @@ aa, agentlist, alaska, amazon, archive-org, articulate-rise, arxiv, arxiv-bulk, 
 
 ## 环境变量（常用）
 
-`BH_HOME`（默认 ~/.config/browser-harness）、`BH_NAME`（多实例端口派生）、`BH_CDP_URL`/`BH_CDP_WS`（钉死连接目标）、`BH_ATTACH_URL_MATCH`（应用钉面）、`BH_IDLE_TIMEOUT`（daemon 空闲自退，只关自身连接）、`BH_DOMAIN_SKILLS`、`BH_IPC/NAVIGATE/SCREENSHOT_TIMEOUT`、`X_*`（x-intel 族）。
+`BH_HOME`（默认 ~/.config/browser-harness）、`BH_NAME`（多实例端口派生）、`BH_CDP_URL`/`BH_CDP_WS`（钉死连接目标）、`BH_ATTACH_URL_MATCH`（应用钉面）、`BH_IDLE_TIMEOUT`（daemon 空闲自退，只关自身连接）、`BH_EVAL_TIMEOUT`（CLI `/eval` 秒，默认 300）、`BH_DOMAIN_SKILLS`、`BH_IPC/NAVIGATE/SCREENSHOT_TIMEOUT`、`X_*`（x-intel 族）。
 
 ## 架构一图流
 
@@ -118,7 +120,7 @@ bh CLI ──HTTP /eval──> daemon（Harness + Session 单 WS）
   │                      └─ 看门狗 / 陈旧 session 自愈 / 事件环形缓冲（peek 可窥视）
   ├─ 应用进程（remoteHost 经 __bh_meta 复用同一 daemon）
   ├─ 用户的浏览器（附着：DevToolsActivePort 发现 + WS 直连 + Allow）
-  └─ rmux 监督链（x-supervisor -> x-intel worker -> x_tweets.db）
+  └─ rmux：supervisor-core 守护 page-detect / x-intel worker（x-monitor）→ x_tweets.db
 ```
 
 ## 陷阱速查
@@ -127,7 +129,8 @@ bh CLI ──HTTP /eval──> daemon（Harness + Session 单 WS）
 - **模板字面量内嵌 `'\n'` 与反引号会被外层先解释**：`\n` 变真换行（页内收到未闭合字符串 -> SyntaxError），``` 会终结模板；一律写 `\\n` 与 `\\\``，或用单引号拼接
 - `js()` 对页内异常**静默返 undefined**（不检查 exceptionDetails）；调试时用裸 `cdp('Runtime.evaluate', ...)` 看原始响应
 - 马标记 = 代理对 + 空格共 **3 个 UTF-16 单元**，去标记 slice(3)
-- `fill_input` 清空**不发 Ctrl+A**（char 事件会输入字面 a），内部已用 `commands:['SelectAll']`
+- `fill_input` 清空**不发 Ctrl+A**（char 事件会输入字面 a），内部已用 `commands:['SelectAll']`；填完回读 value，后台从未激活的 tab 会 `activateTarget` 再试一次，仍空则抛错（不再静默成功）
+- **所有 wait/fill 的 timeout 参数单位是秒**；`15000` 会被当成 15000 秒并告警封顶
 - `new_tab` 先建 about:blank 再 goto（带 url 与 attach 竞速 -> readyState 假完成）
 - 从未激活的 tab 收不了 Input 事件（会挂起），scroll/click 已内置激活重试
 - Chrome 136+ 拒绝默认 profile 开调试端口：附着走 chrome://inspect/#remote-debugging（144+），发现靠 DevToolsActivePort 文件（HTTP /json 端点不服务）
