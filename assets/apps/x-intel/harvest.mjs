@@ -90,6 +90,10 @@ export async function main(argv = [], ctx) {
     total += inserted;
     process.stderr.write(`+${inserted} (raw ${unique.length})\n`);
   }
-  console.log(`harvest complete: +${total} new tweets across ${Math.ceil((t1 - t0) / stepMs)} slice(s) → ${DB_PATH}`);
+  const slices = Math.ceil((t1 - t0) / stepMs);
+  console.log(JSON.stringify({
+    _ok: true, _v: '1.0.0', _ts: new Date().toISOString(),
+    inserted: total, slices, db: DB_PATH,
+  }, null, 1));
   return 0;
 }

@@ -15,6 +15,8 @@ import { importDist, bhHome, dataDir } from './lib.mjs';
 
 const WORKSPACE = process.env.BH_BROWSER_WORKSPACE ?? path.join(bhHome(), 'browser-workspace');
 const DB_PATH = process.env.X_DB ?? path.join(dataDir(), 'x_tweets.db');
+const V = '1.0.0';
+const ok = (extra) => ({ _ok: true, _v: V, _ts: new Date().toISOString(), ...extra });
 
 function sinceToSeconds(raw) {
   const m = /^(\d+)\s*(s|sec|m|min|h|hr|d|w)?$/i.exec(String(raw).trim());
@@ -49,7 +51,11 @@ export async function main(argv = []) {
   const { openDb, tableExists } = await importDist('sqlite.js');
   const db = openDb(DB_PATH);
   try {
-    if (!tableExists(db)) { console.log(csv ? 'keyword,author,handle,posted_at,seen,url,text' : '(no data yet — run bh x-monitor)'); return 0; }
+    if (!tableExists(db)) {
+      if (csv) { process.stdout.write('keyword,author,handle,posted_at,seen,url,text\n'); return 0; }
+      console.log(JSON.stringify(ok({ count: 0, note: 'no data yet — run bh x-intel start' }), null, 1));
+      return 0;
+    }
 
     if (stats) {
       const total = db.prepare('SELECT COUNT(*) c FROM tweets').get().c;
@@ -57,11 +63,11 @@ export async function main(argv = []) {
       const posted = db.prepare('SELECT MIN(posted_at) a, MAX(posted_at) b FROM tweets').get();
       const seen = db.prepare('SELECT MIN(first_seen_at) a, MAX(first_seen_at) b FROM tweets').get();
       const top = db.prepare(`SELECT handle, COUNT(*) c, MAX(first_seen_at) last FROM tweets WHERE handle != '' GROUP BY handle ORDER BY c DESC, last DESC LIMIT 10`).all();
-      console.log(JSON.stringify({
+      console.log(JSON.stringify(ok({
         total_tweets: total, distinct_authors: authors,
         posted_range: [posted.a, posted.b], seen_range: [seen.a, seen.b],
         top_authors: top.map(t => ({ handle: t.handle, count: t.c })),
-      }, null, 2));
+      }), null, 1));
       return 0;
     }
 
@@ -100,21 +106,15 @@ export async function main(argv = []) {
         if (!groups.has(k)) groups.set(k, []);
         groups.get(k).push(r);
       }
-      for (const [k, rs] of groups) {
-        console.log(`== ${k} (${rs.length} tweets) ==`);
-        for (const r of rs) console.log(`  [${String(r.first_seen_at ?? '').slice(11, 19)}] ${r.author} (@${r.handle}): ${String(r.text ?? '').slice(0, 110)}`);
-      }
+      console.log(JSON.stringify(ok({
+        count: rows.length,
+        group_by: groupBy,
+        groups: [...groups].map(([k, rs]) => ({ key: k, count: rs.length, items: rs })),
+      }), null, 1));
       return 0;
     }
 
-    console.log('─'.repeat(60));
-    for (const r of rows) {
-      console.log(`${r.author} | @${r.handle} | posted ${r.posted_at} | seen ${r.first_seen_at}`);
-      console.log(`  ${String(r.text ?? '').slice(0, 320)}`);
-      if (r.url) console.log(`  ${r.url}`);
-    }
-    console.log('─'.repeat(60));
-    console.log(`${rows.length} tweet(s)`);
+    console.log(JSON.stringify(ok({ count: rows.length, items: rows }), null, 1));
     return 0;
   } finally {
     db.close();
