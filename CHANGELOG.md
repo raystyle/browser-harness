@@ -4,7 +4,14 @@
 
 ## [Unreleased]
 
--（空，0.2.0 已封板）
+-（空，0.2.1 已封板）
+
+## [0.2.1] - 2026-09-07
+
+- **看板实例状态渲染 BUG 修复**：数据层早已平铺（alive 在实例行上），前端仍读旧嵌套结构（i.daemon.alive）导致 x-core 恒显 down；渲染层全面改读平铺字段
+- **独立应用与 x-core 组件解耦**：google-search/web-fetch/bing-search/cookie-io/page-detect 内联 bhHome（修复 google-search 因 import 已删 x-lib 而崩溃）；cookie-io 用法文案同步改名
+- **page-detect 七判建议中文化**；domain-skills 副本遗留（x 系空壳 + .py）清理，源=副本=94 站
+- 全面 review 验证：55 测试、六应用冒烟、守护铁律拦截（Browser.close / 外来 targetId）、domain-skills 四机制（挂载/内容/回退/一致性）
 
 ## [0.2.0] - 2026-09-07
 
