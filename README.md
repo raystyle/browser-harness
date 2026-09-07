@@ -38,19 +38,79 @@
 
 **协议即 API。** Chrome 能做的，你就能调用。
 
-## 安装
+## 安装部署
 
-要求 Node ≥ 22（原生 WebSocket 客户端）。然后：
+要求 Node ≥ 22（原生 WebSocket 客户端）。三种安装方式按场景选：
+
+### 方式一：git clone + 本地封板安装（当前推荐）
 
 ```bash
-npm install -g browser-harness-ts      # npm 发布后
-# 或本地封板安装（拷贝式，不走 link）：
-npm install && npm install -g .
+git clone https://github.com/raystyle/browser-harness.git
+cd browser-harness
+npm install            # 安装 devDependencies（typescript/esbuild）
+npm run build          # tsc 编译到 dist/
+npm pack               # 打出 browser-harness-ts-<版本>.tgz（拷贝式包）
+npm install -g ./browser-harness-ts-*.tgz   # 全局安装真拷贝（不是 link）
+rm browser-harness-ts-*.tgz
+bh --version           # 验证：应输出 package.json 里的版本号
 ```
 
-这会把 `bh` CLI 装到 PATH（npm 在 Windows 上自动创建 `.cmd`/`.ps1`/sh 三种 shim，cmd、PowerShell、git-bash 均可直接使用）。
+> **注意**：`npm install -g .` 在部分平台会创建符号链接而非拷贝，导致 BH_HOME 落到源码目录（dev checkout 判定）；`npm pack` + 安装 tarball 才是干净的安装态。
 
-要用作 agent 技能，把 `skill/` 目录复制进你所用 agent 的技能目录（Claude Code：`~/.claude/skills/browser/`，技能名 `browser`）。
+### 方式二：npm 安装（待发布到 npm registry）
+
+```bash
+npm install -g browser-harness-ts
+```
+
+### 方式三：开发模式（源码直跑）
+
+```bash
+git clone https://github.com/raystyle/browser-harness.git
+cd browser-harness
+npm install && npm run build && npm link
+# 开发模式 BH_HOME 自动用 <repo>/.bh-dev，不污染安装态的用户目录
+```
+
+Windows 上 npm 自动创建 `.cmd`/`.ps1`/sh 三种 shim，cmd、PowerShell、git-bash 均可直接用 `bh`。
+
+### 安装后初始化（用户数据目录）
+
+安装态的 BH_HOME 固定为 `~/.config/browser-harness`（可用 `BH_HOME` 环境变量覆盖）。首次使用自动创建：
+
+```
+~/.config/browser-harness/
+  browser-workspace/    # 应用（apps/）+ 站点知识（domain-skills/）+ SDK
+  data/                 # 运行时数据（x_tweets.db、日志、心跳）
+  runtime/              # 实例注册表（bh-<name>.port）
+  tmp/                  # 日志
+```
+
+手动铺装应用与站点知识（也可跳过，首次调用自动铺）：
+
+```bash
+bh skill sync           # 铺装 workspace（apps + domain-skills + sdk，只增不删）
+bh doctor               # 体检：可附着浏览器 / daemon / 资产一致性
+```
+
+### 浏览器附着开启（一次性）
+
+bh 永不启动浏览器，它附着你自己打开的 Chrome（144+）：
+
+1. 打开你的 Chrome，地址栏访问 `chrome://inspect/#remote-debugging`
+2. 启用「Allow remote debugging for this browser instance」
+3. 首次连接时 Chrome 会弹「Allow remote debugging?」确认框，点 Allow
+4. 验证：`bh doctor` 应显示「browser attachable」
+
+### 用作 agent 技能
+
+安装后一键同步技能到 Claude Code 与 Codex：
+
+```bash
+bh skill sync
+```
+
+（手动路径：把 `skill/` 目录复制进 `~/.claude/skills/browser/`，技能名 `browser`。）
 
 或者把下面这段直接粘给你的 agent，它会装好 CLI 并执行第一个任务：
 
@@ -58,6 +118,7 @@ npm install && npm install -g .
 Run `npm install -g browser-harness-ts`，确认 `bh --status` 可用，然后用
 browser 技能驱动我的浏览器：查看我打开的所有标签页，按主题分组，
 并截取最有意思的一个的截图。
+```
 ```
 
 如果 Chrome 弹出远程调试确认框，勾选即可，agent 就是通过它接入的。
