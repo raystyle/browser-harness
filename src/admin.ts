@@ -293,6 +293,56 @@ function logTail(name: string, lines = 5): string {
  * Errors are classified from the log tail and phrased as agent instructions.
  */
 export async function ensureDaemon(): Promise<void> {
+  // D19 init primitive: once the daemon is (re)born, bring up the rest of the
+  // default stack — read-only dashboard + rmux session daemon. Fire-and-forget:
+  // companions are idempotent and a missing rmux / taken port never fails us.
+  // Attachment-stability rule: companions never touch the browser, and they
+  // come up even when the daemon is only HTTP-alive (e.g. still waiting on the
+  // browser's "Allow" prompt) — showing that state IS the dashboard's job.
+  try {
+    await ensureDaemonCore();
+  } catch (e) {
+    void ensureCompanions();
+    throw e;
+  }
+  void ensureCompanions();
+}
+
+async function ensureCompanions(): Promise<void> {
+  // Companions (dashboard / rmux daemon / page-detect guardian) are global
+  // singletons owned by the DEFAULT stack. Named daemons (page-detect watch
+  // loop, x-intel) also pass through ensureDaemon — they must not recursively
+  // re-spawn these companions.
+  if (instanceName() !== DEFAULT_NAME) return;
+  let rmux: any;
+  try {
+    const { ensureDashboard } = await import('./dashboard.js');
+    // Board comes UP by default but is NOT auto-opened as a browser tab — the
+    // user decides when to visit 127.0.0.1:9870 (default: don't attach).
+    await ensureDashboard();
+  } catch { /* best-effort */ }
+  try {
+    const { Rmux } = await import('./rmux.js');
+    rmux = new Rmux();
+    if (rmux.version() && !(await rmux.daemonAlive())) rmux.startServer();
+  } catch { /* best-effort */ }
+  // D20: page-detect is an init primitive — its watch loop runs in an rmux
+  // session and is idempotent (ensureSession is a no-op when already up).
+  try {
+    if (rmux && rmux.version()) {
+      await rmux.ensureSession('page-detect', {
+        command: `"${process.execPath}" "${path.join(DIST_DIR, 'cli.js')}" --name page-detect page-detect watch --watch-loop --interval 10`,
+        readyTimeout: 10,
+      });
+      await rmux.ensureSession('supervisor-core', {
+        command: `"${process.execPath}" "${path.join(workspaceDir(), 'apps', 'supervisor-core.mjs')}"`,
+        readyTimeout: 10,
+      });
+    }
+  } catch { /* best-effort */ }
+}
+
+async function ensureDaemonCore(): Promise<void> {
   const name = instanceName();
   const port = derivedPort();
   const h = await health(port);

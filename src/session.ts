@@ -60,6 +60,14 @@ export class Session implements Transport {
   private eventListeners: Array<(method: string, params: unknown, sessionId?: string) => void> = [];
   private callGuard?: CallGuard;
 
+  /**
+   * Fired when a Target.createTarget sent through THIS transport succeeds.
+   * Symmetric with callGuard (same layer): ownership registration must see
+   * every creation path — helpers via harness.cdp, raw session.domains evals,
+   * library users — not just one dispatcher (issue #1).
+   */
+  onCreateTarget?: (targetId: string) => void;
+
   /** Install a policy hook; see CallGuard. Library users leave this unset. */
   installCallGuard(guard: CallGuard): void {
     this.callGuard = guard;
@@ -211,10 +219,15 @@ export class Session implements Transport {
     if (this.activeSessionId && !isBrowserLevel(method)) {
       msg.sessionId = this.activeSessionId;
     }
-    return new Promise((resolve, reject) => {
+    const p = new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       this.ws!.send(JSON.stringify(msg));
     });
+    if (method === 'Target.createTarget') {
+      // Side channel only — the caller's promise is untouched.
+      p.then(r => { const tid = (r as any)?.targetId; if (tid) this.onCreateTarget?.(tid); }).catch(() => {});
+    }
+    return p;
   }
 
   private onMessage(raw: string): void {

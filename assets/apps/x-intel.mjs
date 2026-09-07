@@ -12,7 +12,10 @@
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { importDist, bhHome } from './x-core/lib.mjs';
+import { importDist, bhHome } from './x-intel/lib.mjs';
+
+export const description = '持续监控 X 时间线并自动收割新帖到本地数据库。';
+export const resident = true; // guardian app: lives in the dashboard 应用监控台
 
 const SUPERVISOR_SESSION = 'x-supervisor';
 const WORKER_SESSION = process.env.X_RMUX_SESSION ?? 'x-monitor';
@@ -30,7 +33,7 @@ async function stop() {
   }
   // The x-monitor daemon instance (BH_NAME=x-monitor), if its registry record exists.
   try {
-    const rec = JSON.parse(readFileSync(path.join(bhHome(), 'runtime', 'bh-x-core.port'), 'utf8'));
+    const rec = JSON.parse(readFileSync(path.join(bhHome(), 'runtime', 'bh-x-intel.port'), 'utf8'));
     if (typeof rec.port === 'number') {
       const res = await fetch(`http://127.0.0.1:${rec.port}/quit`, { method: 'POST' }).catch(() => null);
       stopped.push(res ? `x-monitor daemon (:${rec.port}) stopped` : `x-monitor daemon (:${rec.port}) not answering (already down)`);
@@ -41,23 +44,23 @@ async function stop() {
   return 0;
 }
 
-export const selfManaged = true; // brings up its own BH_NAME=x-core daemon; never the default
+export const selfManaged = true; // brings up its own BH_NAME=x-intel daemon; never the default
 
 export async function main(argv = [], ctx) {
   try {
     const sub = argv.find(a => !a.startsWith('-'));
     // Components launch THROUGH the entry with a role argument — one app,
-    // one executable: `x-core.mjs supervisor|worker`. Their loops are
+    // one executable: `x-intel.mjs supervisor|worker`. Their loops are
     // long-running: import starts them, then we PARK forever (returning would
     // trigger the entry's process.exit and kill the loop).
-    if (sub === 'supervisor') { await import('./x-core/supervisor.mjs'); await new Promise(() => {}); }
-    if (sub === 'worker') { await import('./x-core/worker.mjs'); await new Promise(() => {}); }
-    if (sub === 'search') return (await import('./x-core/search.mjs')).main(argv.filter(a => a !== 'search'));
-    if (sub === 'harvest') return (await import('./x-core/harvest.mjs')).main(argv.filter(a => a !== 'harvest'));
+    if (sub === 'supervisor') { await import('./x-intel/supervisor.mjs'); await new Promise(() => {}); }
+    if (sub === 'worker') { await import('./x-intel/worker.mjs'); await new Promise(() => {}); }
+    if (sub === 'search') return (await import('./x-intel/search.mjs')).main(argv.filter(a => a !== 'search'));
+    if (sub === 'harvest') return (await import('./x-intel/harvest.mjs')).main(argv.filter(a => a !== 'harvest'));
     if (sub === 'stop' || sub === 'close') return await stop();
     // 'start' or bare invocation — idempotent bring-up either way.
 
-    process.env.BH_NAME = process.env.BH_NAME ?? 'x-core'; // dedicated daemon
+    process.env.BH_NAME = process.env.BH_NAME ?? 'x-intel'; // dedicated daemon
     const { detectBrowsers } = await importDist('session.js');
     const { Rmux } = await importDist('rmux.js');
 
@@ -69,13 +72,13 @@ export async function main(argv = [], ctx) {
       return 1;
     }
 
-    const supervisor = new URL('./x-core.mjs', import.meta.url);
+    const supervisor = new URL('./x-intel.mjs', import.meta.url);
     const rmux = new Rmux();
     await rmux.ensureSession(SUPERVISOR_SESSION, {
       command: `"${process.execPath}" "${supervisor.pathname.replace(/^\/([A-Za-z]:)/, '$1')}" supervisor`,
       readyTimeout: 20,
     });
-    console.log('x-core running (monitor supervisor in rmux session "x-supervisor"; db at <BH_HOME>/data/x_tweets.db)');
+    console.log('x-intel running (monitor supervisor in rmux session "x-supervisor"; db at <BH_HOME>/data/x_tweets.db)');
     return 0;
   } catch (e) {
     process.stderr.write(`bh: x-monitor failed: ${e?.message ?? e}\n`);
@@ -83,9 +86,9 @@ export async function main(argv = [], ctx) {
   }
 }
 
-// Direct execution (rmux roles): `node x-core.mjs supervisor|worker|search…`
+// Direct execution (rmux roles): `node x-intel.mjs supervisor|worker|search…`
 // — the plugin contract leaves main() uncalled unless driven by bh's plugin
 // runner, so self-invoke ONLY when this file is the process entry.
-if (process.argv[1] && process.argv[1].endsWith('x-core.mjs')) {
+if (process.argv[1] && process.argv[1].endsWith('x-intel.mjs')) {
   main(process.argv.slice(2)).then(c => process.exit(c ?? 0), e => { console.error(e?.stack ?? e); process.exit(1); });
 }

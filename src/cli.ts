@@ -20,21 +20,21 @@
  *   bh --start    # explicit start (no-op if already running)
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, appendFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { derivedPort, instanceName, logFile } from './paths.js';
-import { homeDir } from './paths.js';
+import { homeDir, dataDir } from './paths.js';
 
 // Materialize the resolved BH_HOME into env so spawned daemons and in-process
 // plugins (which cannot replicate dev-checkout detection) agree with us.
 process.env.BH_HOME = process.env.BH_HOME ?? homeDir();
 
-const PORT = String(process.env.CDP_REPL_PORT ?? derivedPort());
+let PORT = String(process.env.CDP_REPL_PORT ?? derivedPort());
 const HOST = '127.0.0.1';
-const URL_ = `http://${HOST}:${PORT}`;
-const LOG = process.env.CDP_REPL_LOG ?? logFile(instanceName());
+let URL_ = `http://${HOST}:${PORT}`;
+let LOG = process.env.CDP_REPL_LOG ?? logFile(instanceName());
 const REPL = fileURLToPath(new URL('./repl.js', import.meta.url));
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
@@ -178,9 +178,46 @@ async function readStdin(): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  // D19 system-environment check: bh needs the built-in WebSocket client.
+  const nodeMajor = Number((process.versions.node.split('.')[0] ?? '0'));
+  if (!(nodeMajor >= 22)) die(`Node >= 22 required (found ${process.versions.node}) — bh relies on Node's built-in WebSocket client`);
+  // `--name <instance>` — set the bh instance identity BEFORE anything derives
+  // ports/paths from it (guardian apps like page-detect watch run as their own
+  // named daemon instance, x-monitor style). Eaten from argv so dispatch never
+  // sees it.
   const argv = process.argv.slice(2);
+  const nameIdx = argv.indexOf('--name');
+  if (nameIdx >= 0 && argv[nameIdx + 1]) {
+    process.env.BH_NAME = argv[nameIdx + 1];
+    argv.splice(nameIdx, 2);
+  }
+  PORT = String(process.env.CDP_REPL_PORT ?? derivedPort());
+  URL_ = `http://${HOST}:${PORT}`;
+  LOG = process.env.CDP_REPL_LOG ?? logFile(instanceName());
   const arg = argv[0];
   await dispatch(arg, argv);
+}
+
+/**
+ * D17: one app-run record appended to <BH_HOME>/data/app-runs.jsonl — the
+ * platform-level run ledger every app gets for free (no app changes). File
+ * rotates at ~2MB keeping the tail. Telemetry must never break the run.
+ */
+function recordAppRun(app: string, argv: string[], code: number, ms: number, log: string[]): void {
+  try {
+    const file = path.join(dataDir(), 'app-runs.jsonl');
+    mkdirSync(dataDir(), { recursive: true });
+    try {
+      if (statSync(file).size > 2_000_000) {
+        const tail = readFileSync(file, 'utf8').slice(-1_000_000);
+        writeFileSync(file, tail.slice(tail.indexOf('\n') + 1) + '\n');
+      }
+    } catch { /* fresh file */ }
+    appendFileSync(file, JSON.stringify({
+      ts: new Date().toISOString(), app, argv: argv.join(' ').slice(0, 160),
+      code, ms: Math.round(ms), log: log.slice(-12),
+    }) + '\n');
+  } catch { /* best-effort */ }
 }
 
 /** Load and run a plugin with the runner-injected ctx (remote-host helpers). */
@@ -192,7 +229,7 @@ async function runPlugin(name: string, args: string[]): Promise<void> {
   const { createHelpers } = await import('./helpers.js');
   const { createBrowserHelpers } = await import('./browser_helpers.js');
   const { ensureDaemon } = await import('./admin.js');
-  // selfManaged plugins (x-core) bring up and supervise their OWN daemon —
+  // selfManaged plugins (x-intel) bring up and supervise their OWN daemon —
   // pre-ensuring the DEFAULT daemon here would spawn it and let its
   // marker-first attach policy steal the app's tab.
   if (!(plugin as { selfManaged?: boolean }).selfManaged) {
@@ -204,7 +241,24 @@ async function runPlugin(name: string, args: string[]): Promise<void> {
   const host = remoteHost(Number(PORT));
   const helpers = createHelpers(host);
   const browserHelpers = createBrowserHelpers(helpers as any);
-  const code = await plugin.main(args, { helpers: helpers as any, browserHelpers: browserHelpers as any });
+  // D17: tee stderr so the run ledger keeps the app's own log lines.
+  const log: string[] = [];
+  const origWrite = process.stderr.write.bind(process.stderr);
+  (process.stderr.write as any) = (chunk: any, ...rest: any[]) => {
+    try { for (const l of String(chunk).split(/\r?\n/)) if (l.trim()) log.push(l.slice(0, 200)); } catch { /* keep going */ }
+    return (origWrite as any)(chunk, ...rest);
+  };
+  const t0 = Date.now();
+  let code: number;
+  try {
+    code = await plugin.main(args, { helpers: helpers as any, browserHelpers: browserHelpers as any });
+  } catch (e: any) {
+    (process.stderr.write as any)(`bh: ${String(e?.stack ?? e)}\n`);
+    code = 1;
+  } finally {
+    (process.stderr.write as any) = origWrite;
+  }
+  recordAppRun(name, args, typeof code === 'number' ? code : 0, Date.now() - t0, log);
   process.exit(typeof code === 'number' ? code : 0);
 }
 

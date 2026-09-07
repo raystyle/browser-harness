@@ -4,6 +4,8 @@
  * Usage: bh bing-search <query> [--limit N] [--page N]
  */
 
+export const description = '通过浏览器执行必应搜索并返回结果摘要。';
+
 export async function main(argv = [], ctx) {
   const h = ctx.browserHelpers;
   const query = argv.filter(a => !a.startsWith('-'))[0];

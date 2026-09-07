@@ -1,6 +1,6 @@
 /**
  * x-worker — the business loop. Runs in rmux session "x-monitor" under the
- * supervisor, drives a DEDICATED daemon (BH_NAME=x-monitor) attached to the
+ * supervisor, drives a DEDICATED daemon (BH_NAME=x-intel) attached to the
  * USER's browser (D11: never spawn, never reshape/close windows, never touch
  * a tab the user is reading).
  *
@@ -12,13 +12,13 @@
  * always tell a live worker from a dead one.
  */
 
-import { appendFileSync, readFileSync, utimesSync } from 'node:fs';
+import { appendFileSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { importDist, bhHome, dataDir } from './lib.mjs';
 
-process.env.BH_NAME = process.env.BH_NAME ?? 'x-core';
-// The x-monitor daemon's working surface is the USER's existing x.com tab:
+process.env.BH_NAME = process.env.BH_NAME ?? 'x-intel';
+// The x-intel daemon's working surface is the USER's existing x.com tab:
 // attach-first, never create a new tab for it (the daemon inherits this env
 // through ensureDaemon's spawn).
 process.env.BH_ATTACH_URL_MATCH = process.env.BH_ATTACH_URL_MATCH ?? 'x.com';
@@ -28,6 +28,12 @@ const IDLE_THRESHOLD = Number(process.env.X_IDLE_THRESHOLD ?? 10);
 const WORKSPACE = process.env.BH_BROWSER_WORKSPACE ?? path.join(bhHome(), 'browser-workspace');
 const DATA = dataDir();
 const HEARTBEAT = process.env.X_HEARTBEAT ?? path.join(DATA, 'x_worker.heartbeat');
+// Guardian status contract (G002): one uniform schema every resident app
+// publishes — the dashboard's 应用监控台 renders it with ONE template.
+const STATUS = process.env.X_STATUS ?? path.join(DATA, 'x-intel.status.json');
+function writeStatus(st) {
+  try { writeFileSync(STATUS, JSON.stringify({ _v: '1.0.0', ts: new Date().toISOString(), ...st })); } catch { /* best-effort */ }
+}
 const DB_PATH = process.env.X_DB ?? path.join(DATA, 'x_tweets.db');
 
 const sleep = (s) => new Promise(r => setTimeout(r * 1 || r, s * 1000));
@@ -262,10 +268,10 @@ function userIdleNow() {
 
 // --- main loop ---------------------------------------------------------------
 
-/** The x-monitor daemon's port: registry record is the authority. */
+/** The x-intel daemon's port: registry record is the authority. */
 async function daemonPort() {
   if (process.env.BH_PORT) return Number(process.env.BH_PORT);
-  const rec = JSON.parse(readFileSync(path.join(bhHome(), 'runtime', `bh-${process.env.BH_NAME ?? 'x-core'}.port`), 'utf8'));
+  const rec = JSON.parse(readFileSync(path.join(bhHome(), 'runtime', `bh-${process.env.BH_NAME ?? 'x-intel'}.port`), 'utf8'));
   return rec.port;
 }
 
@@ -285,7 +291,7 @@ async function main() {
   } catch { /* daemon still attaching — round 1 will switch */ }
 
   tick(); // visible to the supervisor immediately on start
-  wlog(`x-core::x-monitor 启动：5 秒探测 · 触发后 10 秒内随机启动抓取 · 兜底每 ${FALLBACK_INTERVAL} 秒`);
+  wlog(`x-intel::x-monitor 启动：5 秒探测 · 触发后 10 秒内随机启动抓取 · 兜底每 ${FALLBACK_INTERVAL} 秒`);
   let lastRoundAt = 0;
   for (;;) {
     const trigger = await waitForTrigger(h);
@@ -301,11 +307,25 @@ async function main() {
       // Consistent arithmetic on ONE basis (what the page actually presented):
       // detected = inserted + already-in-db. The pill's own claim is context
       // noise (it reports "≥1" when it has no number), never a metric.
-      wlog(`x-core::x-monitor 刷新\n页面检测到新贴 ${r.detected} 个 · 新入库 ${r.inserted} 个 · 其中 ${dup} 个已存在 · 库存共 ${r.total} 帖`);
+      wlog(`x-intel::x-monitor 刷新\n页面检测到新贴 ${r.detected} 个 · 新入库 ${r.inserted} 个 · 其中 ${dup} 个已存在 · 库存共 ${r.total} 帖`);
+      writeStatus({
+        state: 'running',
+        metrics: [
+          { label: '检测节奏', value: '5 秒探测 · 触发后 10 秒内随机抓取' },
+          { label: '库存', value: `${r.total} 帖` },
+          { label: '库内时间线', value: `${zh(r.earliest)} 至 ${zh(r.latest)}` },
+        ],
+        event: { ts: new Date().toISOString(), text: `新入库 ${r.inserted} · 共 ${r.total} 帖` },
+      });
       ok = true;
       lastRoundAt = Date.now();
     } catch (e) {
-      wlog(`x-core::x-core::x-monitor 刷新失败：${e?.message ?? e}\n${String(e?.stack ?? '').split('\n').slice(1, 4).join('\n')}`);
+      wlog(`x-intel::x-monitor 刷新失败：${e?.message ?? e}\n${String(e?.stack ?? '').split('\n').slice(1, 4).join('\n')}`);
+      writeStatus({
+        state: 'degraded',
+        metrics: [],
+        event: { ts: new Date().toISOString(), text: `刷新失败：${String(e?.message ?? e).slice(0, 60)}` },
+      });
       // Self-heal the daemon as well: a dead daemon starves every round, but
       // the heartbeat keeps ticking so the supervisor cannot see this failure.
       try { await ensureDaemon(); } catch { /* next round retries */ }

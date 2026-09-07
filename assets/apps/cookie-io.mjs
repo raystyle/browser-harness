@@ -12,6 +12,8 @@ import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 
 const SCHEMA = 'browser-harness-ts-cookies/1';
 
+export const description = '按域名导出与导入浏览器的 Cookie 登录态。';
+
 export async function main(argv = [], ctx) {
   const cdp = ctx.helpers.cdp;
   const cmd = argv[0];

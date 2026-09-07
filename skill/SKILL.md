@@ -1,6 +1,6 @@
 ---
 name: browser
-description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平台。两层 API——协议层（652 个 CDP 方法全类型直调）与语义层（goto_url/js/click_at_xy/wait_for_render 等 snake_case 助手，tab 纪律、等待判官、自愈）。经 bh CLI 运行 JS 片段，长驻 Node daemon 持有持久会话，session、活动 target、全局变量跨调用保持。附着用户自己打开的浏览器（永不 spawn，专属 tab 铁律与人机共存）。含插件应用（web-fetch/google-search/bing-search/cookie-io/page-detect/x-core X 监控）、domain-skills 站点知识（94 站）、录制与视频导出。当用户想自动化、抓取、测试或检查浏览器时使用。
+description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平台。两层 API——协议层（652 个 CDP 方法全类型直调）与语义层（goto_url/js/click_at_xy/wait_for_render 等 snake_case 助手，tab 纪律、等待判官、自愈）。经 bh CLI 运行 JS 片段，长驻 Node daemon 持有持久会话，session、活动 target、全局变量跨调用保持。附着用户自己打开的浏览器（永不 spawn，专属 tab 铁律与人机共存）。含插件应用（web-fetch/google-search/medium-search/bing-search/cookie-io/page-detect/x-intel X 监控）、domain-skills 站点知识（94 站）、录制与视频导出。当用户想自动化、抓取、测试或检查浏览器时使用。
 ---
 
 # browser：bh 平台技能
@@ -8,7 +8,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 > 本文是**总览 + 意图路由**：按意图找到入口，再按渐进层级下钻细节。
 > 细节唯一权威源：原语在 `primitives/`，机制在 `interaction-skills/`，站点在 domain-skills，应用在 workspace apps。
 
-**两层 API，一个守护进程**：协议层 652 方法带类型直调（`session.Page.navigate(...)`，无封装遮蔽）+ 语义层 snake_case 助手（`goto_url` / `js` / `click_at_xy` / `wait_for_render`，预注入裸全局名）。`bh` CLI 首次使用自动拉起长驻 daemon（Node ≥22，零运行时依赖），附着**用户自己打开的浏览器**（永不 spawn，专属 tab 铁律，人机共存）。
+**两层 API，一个守护进程**：协议层 652 方法带类型直调（`session.Page.navigate(...)`，无封装遮蔽）+ 语义层 snake_case 助手（`goto_url` / `js` / `click_at_xy` / `wait_for_render`，预注入裸全局名）。`bh` CLI 首次使用自动拉起长驻 daemon（Node ≥22，零运行时依赖），附着**用户自己打开的浏览器**（永不 spawn，专属 tab 铁律，人机共存）。D19 初始化原语：使用前判系统环境（Node 版本闸），daemon（重）生时幂等带起看板与 rmux 守护（fire-and-forget，不动既有附着）。
 
 ## 意图路由（想做什么 -> 用什么）
 
@@ -20,7 +20,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | 抓取并分析某页内容 | `bh web-fetch <url>`（HTTP 优先三条件升级浏览器） | `primitives/fetch-analyze.md` |
 | 页面打不开/登不上/空白 | `bh page-detect [url片段]`（七判 + 证据 + 建议） | `primitives/detect.md` |
 | 迁移登录态 | `bh cookie-io export\|import` | 应用层 |
-| 监控 X / 查收割库 | `bh x-core start\|stop` / `x-core search\|harvest` | 应用层 |
+| 监控 X / 查收割库 | `bh x-intel start\|stop` / `x-intel search\|harvest` | 应用层 |
 | 冷门交互（下拉/shadow-DOM/拖拽…） | 直接写 CDP，先查配方 | `interaction-skills/<机制>.md` |
 | 诊断环境 | `bh doctor [--json]` | `primitives/observability.md` |
 | 录制与视频 | `bh record …` / `bh video init/export` | 本文「录制与视频」节 |
@@ -35,7 +35,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | L1 原语契约 | 用到该原语时 | `primitives/attach.md` `search.md` `fetch-analyze.md` `detect.md` `observability.md` |
 | L2 CDP 机制 | 写协议调用遇到冷门交互时 | `interaction-skills/`（一文件一机制，17 篇） |
 | L3 站点知识 | 目标站在索引中时 | `BH_DOMAIN_SKILLS=1` 后 `goto_url()` 返回清单 -> **通读该站全部 .md 再动手** |
-| L4 长跑应用 | 用 x-core / 搜索 / 抓取 / 诊断 / cookie 迁移时 | 本文「应用」节 + workspace/apps/ |
+| L4 长跑应用 | 用 x-intel / 搜索 / 抓取 / 诊断 / cookie 迁移时 | 本文「应用」节 + workspace/apps/ |
 
 ## CLI 命令（L0 速查）
 
@@ -45,7 +45,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | `bh --status/--start/--stop/--restart/--logs` | daemon 生命周期 |
 | `bh doctor [--json]` | 诊断：可附着浏览器 / daemon / 资产一致性 |
 | `bh sessions` | 实例清单 + 窗口分组 tab 表 + 附着策略 |
-| `bh dashboard [start\|stop\|status]` | 只读看板 127.0.0.1:9870（SSE 推送） |
+| `bh dashboard [start\|stop\|status]` | 只读看板 127.0.0.1:9870（SSE 推送；墙类弹 Chrome 系统通知 D16/D18；独立应用卡片区 D17：描述/运行流水/日志行/库存 + 折叠拖拽；部署信息栏默认隐藏；页面版本握手自动重载） |
 | `bh rmux` | rmux 监督面：会话/pane 树 |
 | `bh --new-tab '<js>'` | 显式新开 about:blank 附着执行 |
 | `bh run <name>` / `bh <name>` | 显式/路由调用应用 |
@@ -58,12 +58,14 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 
 - `bh web-fetch <url>`：HTTP 优先，空/墙词/正文<20 词三条件升级浏览器
 - `bh google-search <q> [--top N]`：两步契约（指标落盘，`pluck gs_search` 取数）；CAPTCHA 如实报
+- `bh medium-search <q> [--top N] | grab <url> [--out F] | pluck [ms_search|ms_article] | ready`：medium 站内搜索与文章抓取（两步契约 cache `ms_search`/`ms_article`；正文走 DOM 提取，因 CF 对页内 `?format=json` 连续请求挂起；遇墙 CAPTCHA|WALL 如实报 exit 2）
 - `bh bing-search <q>`：浏览器搜索 + 拦截检测
 - `bh page-detect [url片段]`：页面诊断七判 + 事件证据 + 建议
+- `bh page-detect watch [--interval S] | unwatch | status`：通用页面守护（D18）：常驻只读探测附着浏览器全部 http(s) 页面，墙类边沿（含白屏持久化、资源被 CF 阻断）自动告警，通知经看板已授权源弹出；状态落 data/page-watch.json
 - `bh cookie-io export|import`：CDP 存取，默认拒绝全量导出（--domain/--all）
-- `bh x-core [start|stop]`：X 监控（附着浏览器 + rmux 自愈监督 + SQLite 去重库；关浏览器即暂停，只重拉 worker）
-- `bh x-core search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器
-- `bh x-core harvest <q> --from --to`：时间分片全量收割
+- `bh x-intel [start|stop]`：X 监控（附着浏览器 + rmux 自愈监督 + SQLite 去重库；关浏览器即暂停，只重拉 worker）
+- `bh x-intel search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器
+- `bh x-intel harvest <q> --from --to`：时间分片全量收割
 
 **插件契约**：`apps/<name>.mjs` 导出 `main(argv, ctx)` 返回退出码；ctx 注入 `{helpers, browserHelpers}`；`browser_helpers.mjs` 命名导出按名覆盖内置。开发标准见 repo 的 G002/R002。
 
@@ -71,7 +73,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 
 ```
 browser-workspace/          应用与资产运行面
-  apps/                     六应用 + x-core/ 组件目录
+  apps/                     七应用 + x-intel/ 组件目录
   browser_helpers.mjs       站点级助手（可覆盖）
   domain-skills/            94 站知识库（只增不删）
   sdk/                      页面常驻 SDK
@@ -99,7 +101,7 @@ aa, agentlist, alaska, amazon, archive-org, articulate-rise, arxiv, arxiv-bulk, 
 
 ## 环境变量（常用）
 
-`BH_HOME`（默认 ~/.config/browser-harness）、`BH_NAME`（多实例端口派生）、`BH_CDP_URL`/`BH_CDP_WS`（钉死连接目标）、`BH_ATTACH_URL_MATCH`（应用钉面）、`BH_IDLE_TIMEOUT`（daemon 空闲自退，只关自身连接）、`BH_DOMAIN_SKILLS`、`BH_IPC/NAVIGATE/SCREENSHOT_TIMEOUT`、`X_*`（x-core 族）。
+`BH_HOME`（默认 ~/.config/browser-harness）、`BH_NAME`（多实例端口派生）、`BH_CDP_URL`/`BH_CDP_WS`（钉死连接目标）、`BH_ATTACH_URL_MATCH`（应用钉面）、`BH_IDLE_TIMEOUT`（daemon 空闲自退，只关自身连接）、`BH_DOMAIN_SKILLS`、`BH_IPC/NAVIGATE/SCREENSHOT_TIMEOUT`、`X_*`（x-intel 族）。
 
 ## 架构一图流
 
@@ -110,11 +112,14 @@ bh CLI ──HTTP /eval──> daemon（Harness + Session 单 WS）
   │                      └─ 看门狗 / 陈旧 session 自愈 / 事件环形缓冲（peek 可窥视）
   ├─ 应用进程（remoteHost 经 __bh_meta 复用同一 daemon）
   ├─ 用户的浏览器（附着：DevToolsActivePort 发现 + WS 直连 + Allow）
-  └─ rmux 监督链（x-supervisor -> x-core worker -> x_tweets.db）
+  └─ rmux 监督链（x-supervisor -> x-intel worker -> x_tweets.db）
 ```
 
 ## 陷阱速查
 
+- **多语句片段必须显式 `return`**：repl 只对单表达式自动补 `return (...)`；多行/带分号片段的返回值不写 `return` 就是 undefined，CLI 静默空输出（不是错误）
+- **模板字面量内嵌 `'\n'` 与反引号会被外层先解释**：`\n` 变真换行（页内收到未闭合字符串 -> SyntaxError），``` 会终结模板；一律写 `\\n` 与 `\\\``，或用单引号拼接
+- `js()` 对页内异常**静默返 undefined**（不检查 exceptionDetails）；调试时用裸 `cdp('Runtime.evaluate', ...)` 看原始响应
 - 马标记 = 代理对 + 空格共 **3 个 UTF-16 单元**，去标记 slice(3)
 - `fill_input` 清空**不发 Ctrl+A**（char 事件会输入字面 a），内部已用 `commands:['SelectAll']`
 - `new_tab` 先建 about:blank 再 goto（带 url 与 attach 竞速 -> readyState 假完成）

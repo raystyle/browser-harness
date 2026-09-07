@@ -8,6 +8,8 @@
  *   bh web-fetch --current          (extract the attached tab instead)
  */
 
+export const description = '抓取网页正文，必要时自动升级为真实浏览器渲染。';
+
 export async function main(argv = [], ctx) {
   const h = ctx.browserHelpers;
   const args = argv.filter(a => !a.startsWith('-'));

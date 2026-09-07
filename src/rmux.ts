@@ -163,6 +163,13 @@ export class Rmux {
     await this.run(['kill-server']);
   }
 
+  /** D19 init primitive: bring the label's session daemon up (no-op if running). */
+  startServer(): boolean {
+    if (!this.bin) return false;
+    this.spawnDetached(['start-server']);
+    return true;
+  }
+
   async sendKeys(target: string, keys: string, opts: { literal?: boolean } = {}): Promise<void> {
     const args = ['send-keys', '-t', target];
     if (opts.literal) args.push('-l');

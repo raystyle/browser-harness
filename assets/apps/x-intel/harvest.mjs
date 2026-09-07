@@ -12,7 +12,7 @@
 import path from 'node:path';
 import { importDist, bhHome, dataDir } from './lib.mjs';
 
-process.env.BH_NAME = process.env.BH_NAME ?? 'x-core';
+process.env.BH_NAME = process.env.BH_NAME ?? 'x-intel';
 const WORKSPACE = process.env.BH_BROWSER_WORKSPACE ?? path.join(bhHome(), 'browser-workspace');
 const DB_PATH = process.env.X_DB ?? path.join(dataDir(), 'x_tweets.db');
 
@@ -36,7 +36,7 @@ export async function main(argv = [], ctx) {
   const sqlite = await importDist('sqlite.js');
   await ensureDaemon();
   const { readFileSync } = await import('node:fs');
-  const port = Number(process.env.BH_PORT ?? (JSON.parse(readFileSync(path.join(bhHome(), 'runtime', 'bh-x-monitor.port'), 'utf8')).port));
+  const port = Number(process.env.BH_PORT ?? (JSON.parse(readFileSync(path.join(bhHome(), 'runtime', 'bh-x-intel.port'), 'utf8')).port));
   const h = createHelpers(remoteHost(port));
 
   const t0 = Date.parse(from);

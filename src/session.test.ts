@@ -104,6 +104,27 @@ describe('Session events', () => {
     assert.equal((await p).n, 2);
     await assert.rejects(session.waitFor('X.never', undefined, 100), /Timeout waiting for X.never/);
   });
+
+  test('Target.createTarget reply fires onCreateTarget — ownership rides the transport (issue #1)', async () => {
+    const session = new Session();
+    (session as any).ws = {
+      readyState: WebSocket.OPEN,
+      send(raw: string) {
+        const m = JSON.parse(raw);
+        queueMicrotask(() => (session as any).onMessage(JSON.stringify(
+          m.method === 'Target.createTarget' ? { id: m.id, result: { targetId: 'T1' } } : { id: m.id, result: {} })));
+      },
+    };
+    const owned: string[] = [];
+    session.onCreateTarget = tid => owned.push(tid);
+    // Raw-transport path (what `bh --new-tab`'s session.domains call uses).
+    const r = (await session._call('Target.createTarget', { url: 'about:blank' })) as { targetId: string };
+    assert.equal(r.targetId, 'T1'); // the caller's promise is untouched
+    await new Promise(res => setTimeout(res, 0)); // side channel settles on a microtask
+    assert.deepEqual(owned, ['T1']);
+    await session._call('Page.navigate', { url: 'about:blank' });
+    assert.equal(owned.length, 1); // only createTarget registers
+  });
 });
 
 describe('resolveWsUrl', () => {

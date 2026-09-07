@@ -4,7 +4,12 @@
 
 ## [Unreleased]
 
--（空，0.2.1 已封板）
+- **medium-search 插件应用（D15）**：medium.com 站内搜索 + 文章抓取（SDK `__ms` 常驻 + 两步契约 `ms_search`/`ms_article` + 人机共存 tab 策略）；G002 六门禁验收，墙场景被真 CF 挑战实证
+- **看板墙提醒（D16/D18）**：墙类判定边沿弹 Chrome 系统通知（requireInteraction + tag 去重 + 点击只聚焦看板）+ 右栏钉住横幅 + 权限引导；page-detect 转 watch 常驻监测全部页面（Google 验证/Cloudflare 挑战/登录墙/资源阻断/白屏持久化），通知吃 alerts 流防重放
+- **看板应用卡片区（D17）**：独立「应用」区七卡（描述/运行流水/日志行/库存/墙高亮，折叠拖拽持久化）；平台层 app-runs.jsonl 运行流水（应用零改造）；部署信息栏默认隐藏；刷新 tick 内联 tag 流
+- **初始化原语（D19）**：首次使用判系统环境自动带起默认守护 + rmux 守护 + 看板（幂等、不动既有附着、Node ≥22 闸）；看板页版本握手自动重载
+- **tab 所有权注册两处修复（issue #1）**：createTarget 所有权注册从 dispatchRaw 下沉到 Session._call 传输层（守卫与注册同层，`bh --new-tab` 建的 tab 此前永远关不掉）；连接后调 `Target.setDiscoverTargets` 接通 targetInfoChanged（马标记所有权分支此前是死代码）；附回归测试
+- 全仓术语修正：封板 -> 封版
 
 ## [0.2.1] - 2026-09-07
 

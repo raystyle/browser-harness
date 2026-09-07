@@ -20,6 +20,8 @@ const CACHE_DIR = process.env.BH_BROWSER_WORKSPACE
   ? path.join(process.env.BH_BROWSER_WORKSPACE, 'cache', 'google')
   : path.join(bhHome(), 'browser-workspace', 'cache', 'google');
 const MAX_BATCH = 100;
+
+export const description = '通过浏览器执行谷歌搜索，结果落盘供分页取用。';
 const USAGE = 'bh: usage: bh google-search <query> [--top N] | bh google-search pluck [cache] | bh google-search ready';
 
 function fail(msg, code = 1) { process.stderr.write(`bh: ${msg}\n`); return code; }

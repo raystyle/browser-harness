@@ -48,6 +48,11 @@ export class Harness {
     // bypass it either.
     session.installCallGuard((method, params) => this.guardBrowserLifetime(method, params));
     session.onEvent((method, params, sessionId) => this.onEvent({ method, params, sessionId }));
+    // Tab ownership rides the transport, mirroring the callGuard above: every
+    // Target.createTarget reply — whichever path issued it — joins the
+    // closeable set. (issue #1: --new-tab's raw session.domains call used to
+    // bypass the dispatcher-level registration and its tab became uncloseable.)
+    session.onCreateTarget = (tid) => { this.ownedTargets.add(tid); };
     // Browser-level death watch: a closed WS means the user's browser went
     // down — keep trying to re-attach (the toggle channel survives browser
     // restarts); each new WS connection re-prompts Allow, so the user must
@@ -73,6 +78,9 @@ export class Harness {
 
   /** Tabs bh may close: created by this daemon, or carrying the horse marker. */
   private ownedTargets = new Set<string>();
+
+  /** Target discovery is per browser-level connection; re-armed on every connect(). */
+  private discoveryOn = false;
 
   private guardBrowserLifetime(method: string, params: any): void {
     if (method === 'Browser.close') {
@@ -119,6 +127,7 @@ export class Harness {
    * connection waits on the Chrome "Allow" prompt). No spawn path exists.
    */
   async connect(): Promise<void> {
+    this.discoveryOn = false; // fresh browser-level WS: discovery must be (re-)enabled
     const wsEnv = process.env.BH_CDP_WS;
     if (wsEnv) {
       await this.session.connect({ wsUrl: wsEnv, timeoutMs: 5_000 });
@@ -134,7 +143,7 @@ export class Harness {
       for (const b of browsers) {
         try {
           await this.session.connect({ wsUrl: b.wsUrl, timeoutMs: 30_000 });
-          await this.attachFirstPage();
+          if (this.shouldAttachEagerly()) await this.attachFirstPage();
           return;
         } catch (e: any) {
           const msg = String(e?.message ?? e);
@@ -144,7 +153,12 @@ export class Harness {
       throw new Error(
         `No discovered browser accepted a connection. If one of these is yours, click "Allow" on its remote-debugging prompt and retry:\n${errors.join('\n')}`);
     }
-    await this.attachFirstPage();
+    if (this.shouldAttachEagerly()) await this.attachFirstPage();
+  }
+
+  /** Named app daemons pin their surface eagerly; the default instance stays lazy. */
+  private shouldAttachEagerly(): boolean {
+    return !!process.env.BH_ATTACH_URL_MATCH;
   }
 
   /** Poll <url>/json/version for webSocketDebuggerUrl. 403 → the Allow-popup instruction. */
@@ -177,6 +191,12 @@ export class Harness {
       || url.startsWith('chrome://newtab') || url.startsWith('chrome://new-tab-page') || url.startsWith('edge://newtab') || url.startsWith('about:newtab');
   }
 
+  /** The web board is a read-only control plane — never an agent work surface. */
+  private isControlPlane(url: string): boolean {
+    const port = process.env.BH_DASHBOARD_PORT ?? '9870';
+    return url.startsWith(`http://127.0.0.1:${port}`) || url.startsWith(`http://localhost:${port}`);
+  }
+
   /**
    * Dedicated-tab attach policy (D11 coexistence iron rule): the agent ONLY
    * ever works in its own tab — previously ours (marked), then any blank
@@ -185,14 +205,15 @@ export class Harness {
    * (switch_tab / set_session from the caller).
    */
   async attachFirstPage(): Promise<{ sessionId: string; targetId: string }> {
+    await this.enableTargetDiscovery();
     const { targetInfos } = await this.rawBrowserCall('Target.getTargets', {}) as { targetInfos: Array<{ targetId: string; type: string; url: string; title: string }> };
-    const pages = targetInfos.filter(t => t.type === 'page');
+    const pages = targetInfos.filter(t => t.type === 'page' && !this.isControlPlane(t.url));
 
     // App daemons pin their working surface: BH_ATTACH_URL_MATCH (substring)
     // prefers an EXISTING page over creating a dedicated blank — in the
     // attach model every new tab is visible clutter in the user's browser.
     // Preference order after that: blank > marked > create. Marked tabs often
-    // belong to ANOTHER app daemon (x-core marks x.com); the default instance
+    // belong to ANOTHER app daemon (x-intel marks x.com); the default instance
     // must never steal an app's working tab just because it carries the horse.
     const want = process.env.BH_ATTACH_URL_MATCH;
     let pick = (want && pages.find(t => t.url.includes(want))?.targetId)
@@ -205,6 +226,17 @@ export class Harness {
     this.ownedTargets.add(pick); // the working tab is ours to operate (and close when it's one we made)
     const sid = await this.attachTo(pick);
     return { sessionId: sid, targetId: pick };
+  }
+
+  /**
+   * Target.targetInfoChanged only flows after Target.setDiscoverTargets —
+   * without this call the marker-title ownership branch in onEvent is dead
+   * code (issue #1). One call per browser-level connection, best-effort.
+   */
+  private async enableTargetDiscovery(): Promise<void> {
+    if (this.discoveryOn) return;
+    this.discoveryOn = true;
+    await this.rawBrowserCall('Target.setDiscoverTargets', { discover: true }, 3_000).catch(() => {});
   }
 
   /** Target.attachToTarget flatten + default-domain enables + marker. */
@@ -254,6 +286,12 @@ export class Harness {
     // only: iframe attaches (js() isolation sessions) must not clobber it.
     if (ev.method === 'Target.attachedToTarget' && ev.params?.targetInfo?.type === 'page') {
       this.attachedTargetId = ev.params.targetInfo.targetId;
+    } else if (ev.method === 'Target.detachedFromTarget'
+      && String(ev.params?.targetId ?? '') === this.attachedTargetId) {
+      // A transient probe detaches after scanning (page-detect watches every
+      // tab). Clear the tracked target so the instance reports "not attached"
+      // until the next implicit page-level call re-attaches lazily.
+      this.attachedTargetId = undefined;
     } else if (ev.method === 'Target.targetInfoChanged'
       && String(ev.params?.targetInfo?.title ?? '').startsWith(MARKER)) {
       // A tab carrying the horse marker is ours by convention — closeable.
@@ -329,10 +367,8 @@ export class Harness {
       p = (this.session as any)._call(method, params);
       this.session.setActiveSession(saved);
     }
-    if (method === 'Target.createTarget') {
-      // Every tab we create joins the closeable set (best-effort record).
-      p.then(r => { if (r?.targetId) this.ownedTargets.add(r.targetId); }).catch(() => {});
-    }
+    // Target.createTarget ownership is registered in Session._call (transport
+    // level) so raw session.domains evals register too — nothing to do here.
     return this.withTimeout(p, budgetMs);
   }
 
@@ -348,6 +384,10 @@ export class Harness {
    * implicit calls to a dead session re-attach the last target and retry once.
    */
   async cdp(method: string, params: Record<string, unknown> = {}, opts: { sessionId?: string; timeoutMs?: number } = {}): Promise<any> {
+    const browserLevel = method.startsWith('Browser.') || method.startsWith('Target.') || method.startsWith('Extensions.');
+    if (!browserLevel && !opts.sessionId && !this.session.getActiveSession()) {
+      await this.attachFirstPage();
+    }
     const budget = opts.timeoutMs ?? envNumber('BH_IPC_TIMEOUT', 5) * 1000;
     try {
       return await this.dispatchRaw(method, params, opts.sessionId, budget);

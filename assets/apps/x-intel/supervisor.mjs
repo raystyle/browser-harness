@@ -8,7 +8,7 @@
  * The supervisor itself never dies: each beat is wrapped, errors are logged
  * and the loop continues. Only 3 rmux commands are ever used.
  *
- * Run by rmux (spawned from x-core.mjs); debugging: node x-core/supervisor.mjs
+ * Run by rmux (spawned from x-intel.mjs); debugging: node x-intel/supervisor.mjs
  */
 
 import { appendFileSync, statSync } from 'node:fs';
@@ -48,8 +48,8 @@ function localPath(u) {
 async function main() {
   const { Rmux } = await importDist('rmux.js');
   const rmux = new Rmux();
-  // Workers launch through the app entry with a role arg: x-core.mjs worker
-  const entryPath = localPath(new URL('../x-core.mjs', import.meta.url));
+  // Workers launch through the app entry with a role arg: x-intel.mjs worker
+  const entryPath = localPath(new URL('../x-intel.mjs', import.meta.url));
 
   async function spawnWorker() {
     await rmux.ensureSession(SESSION, { command: `"${process.execPath}" "${entryPath}" worker`, readyTimeout: 20 });

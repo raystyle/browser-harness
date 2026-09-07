@@ -14,12 +14,14 @@
 | CDP 协议直调 + 语义助手 | `bh '<js>'` |
 | 诊断 | `bh doctor [--json]`（含「浏览器可附着」检查与开启指引） |
 | 技能与资产分发 | `bh skill status/sync`（三线哈希防漂移、只增不删） |
-| 抓取/搜索 | `bh web-fetch`、`bh google-search`（两步契约：`--top N` 出指标，`pluck gs_search` 取数）、`bh bing-search` |
+| 抓取/搜索 | `bh web-fetch`、`bh google-search`（两步契约：`--top N` 出指标，`pluck gs_search` 取数）、`bh medium-search`（站内搜索 + `grab <url>` 文章转 markdown，两步契约 `ms_search`/`ms_article`）、`bh bing-search` |
 | Cookie 迁移 | `bh cookie-io export/import` |
 | X 监控 | `bh x-core [start]`（附着你的浏览器 + rmux 自愈监督）/ `bh x-core stop`（按序拆栈：supervisor -> worker -> 专属 daemon）/ `bh x-core search` / `bh x-core harvest`；`bh rmux` 看监督面状态（会话/pane 树） |
 | 录制/视频 | `bh record …` -> `bh video init/export` |
 | 状态探测 | `bh sessions`：对象模型（instance/browser/session/tab）+ 全实例清单 + 窗口分组 tab 表 + 新任务附着策略（专属 tab 铁律 / app 复用 / `--new-tab` 显式新开 / 用户 tab 显式授权） |
-| 网页看板 | `bh dashboard`：只读看板 http://127.0.0.1:9870（SSE 推送）：守护实例/附着面/rmux 监督/worker 心跳/页面健康判定/事件流尾 |
+| 网页看板 | `bh dashboard`：只读看板 http://127.0.0.1:9870（SSE 推送）：守护实例/附着面/rmux 监督/worker 心跳/页面健康判定/事件流尾；墙类判定（含 Google 验证/Cloudflare 挑战/白屏持久化/资源阻断）边沿弹 Chrome 系统通知（requireInteraction 驻留，一次授权常驻）；独立应用卡片区（描述/运行流水/日志行/库存，可折叠拖拽）；部署信息栏默认隐藏；页面版本握手自动重载 |
+| 页面守护 | `bh page-detect watch [--interval S]`：常驻只读探测全部页面，墙/白屏/资源阻断自动告警（`unwatch` 停、`status` 查）；单次诊断 `bh page-detect [url片段]` 七判保留 |
+| 初始化 | 首次使用判系统环境自动带起：默认浏览器守护进程 + rmux 守护 + 看板（幂等；Node ≥22 版本闸） |
 | 显式新 tab | `bh --new-tab '<js>'`（新开 about:blank 附着执行） |
 | 多实例 | `BH_NAME=<name> bh …`（端口自动派生） |
 
@@ -42,7 +44,7 @@
 
 要求 Node ≥ 22（原生 WebSocket 客户端）。三种安装方式按场景选：
 
-### 方式一：git clone + 本地封板安装（当前推荐）
+### 方式一：git clone + 本地封版安装（当前推荐）
 
 ```bash
 git clone https://github.com/raystyle/browser-harness.git

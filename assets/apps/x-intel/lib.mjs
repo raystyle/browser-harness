@@ -24,7 +24,7 @@ export function bhHome() {
 /** dist dir from env override, else daemon records, else the provision stamp. */
 export function distDir() {
   if (process.env.BH_DIST) return process.env.BH_DIST;
-  for (const name of ['default', 'x-monitor']) {
+  for (const name of ['default', 'x-intel']) {
     try {
       const rec = JSON.parse(readFileSync(path.join(bhHome(), 'runtime', name === 'default' ? 'bh.port' : `bh-${name}.port`), 'utf8'));
       if (rec.dist) return rec.dist;
