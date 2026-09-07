@@ -148,6 +148,7 @@ const RETIRED_WORKSPACE_FILES: string[] = [
   'browser_watch.py', 'browser_wizard.py', 'page_text.py', 'start-x-monitor.ps1',
   'x_monitor.py', 'x_search.py', 'x_supervisor.py', 'x_worker.py',
   'apps/x-core', 'apps/x-core.mjs',
+  'apps/x-intel/supervisor.mjs',
 ];
 
 export function provisionWorkspace(workspaceDir: string, dryRun = false): { copied: string[]; retired: string[] } {

@@ -16,7 +16,7 @@
 | 技能与资产分发 | `bh skill status/sync`（三线哈希防漂移、只增不删） |
 | 抓取/搜索 | `bh web-fetch`、`bh google-search`（两步契约：`--top N` 出指标，`pluck gs_search` 取数）、`bh medium-search`（站内搜索 + `grab <url>` 文章转 markdown，两步契约 `ms_search`/`ms_article`）、`bh bing-search`（两步契约：`--top N` 出指标，`pluck bs_search` 取数） |
 | Cookie 迁移 | `bh cookie-io export/import` |
-| X 监控 | `bh x-intel [start]`（附着你的浏览器 + rmux 自愈监督）/ `bh x-intel stop`（按序拆栈：supervisor -> worker -> 专属 daemon）/ `bh x-intel search` / `bh x-intel harvest`；`bh rmux` 看监督面状态（会话/pane 树） |
+| X 监控 | `bh x-intel [start]`（附着你的浏览器，worker 在 rmux `x-monitor`；由 supervisor-core 守护）/ `bh x-intel stop`（写 stopped → 杀 worker → 专属 daemon）/ `bh x-intel search` / `bh x-intel harvest` |
 | 录制/视频 | `bh record …` -> `bh video init/export` |
 | 状态探测 | `bh sessions`：对象模型（instance/browser/session/tab）+ 全实例清单 + 窗口分组 tab 表 + 新任务附着策略（专属 tab 铁律 / app 复用 / `--new-tab` 显式新开 / 用户 tab 显式授权） |
 | 网页看板 | `bh dashboard`：只读看板 http://127.0.0.1:9870（SSE 推送）：守护实例/附着面/rmux 监督/worker 心跳/页面健康判定/事件流尾；墙类判定（含 Google 验证/Cloudflare 挑战/白屏持久化/资源阻断）边沿弹 Chrome 系统通知（requireInteraction 驻留，一次授权常驻）；独立应用卡片区（描述/运行流水/日志行/库存，可折叠拖拽）；部署信息栏默认隐藏；页面版本握手自动重载。看板不是工作 tab，default 与应用禁止附着 |

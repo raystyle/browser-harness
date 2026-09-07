@@ -123,7 +123,7 @@ async function collectRmux(): Promise<unknown> {
     const status = await r.status() as { sessions?: Array<{ name: string; panes?: Array<{ pid?: number }> }> };
     // Enrich panes with the REAL command line: rmux's pane_current_command is
     // just the exe name on Windows (node.exe) — the pid -> CommandLine map
-    // tells you it's x-worker.mjs / x-supervisor.mjs / dashboard.js.
+    // tells you it's x-intel worker / supervisor-core / dashboard.js.
     const cmdByPid = await processCommandLines();
     for (const s of status.sessions ?? []) {
       for (const p of s.panes ?? []) {

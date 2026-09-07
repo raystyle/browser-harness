@@ -176,7 +176,6 @@ async function watchLoop(h, intervalSec) {
       state.ts = new Date().toISOString();
       saveState(state);
       const bad = rows.filter(r => r.verdict !== 'ok').length;
-      const lastAlert = (state.alerts || []).slice(-1)[0];
       writeStatus({
         state: 'running',
         metrics: [
@@ -184,7 +183,6 @@ async function watchLoop(h, intervalSec) {
           { label: '巡检覆盖', value: `${rows.length} 页` },
           { label: '异常', value: `${bad}` },
         ],
-        event: lastAlert ? { ts: lastAlert.ts, text: `${lastAlert.title || ''}（${lastAlert.verdict}）`.slice(0, 60) } : undefined,
       });
       // quiet heartbeat line ~once a minute so the log rail shows the sweep
       if (Date.now() - lastSweepLog > 60_000) {

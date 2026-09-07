@@ -1,8 +1,8 @@
 /**
- * x-worker — the business loop. Runs in rmux session "x-monitor" under the
- * supervisor, drives a DEDICATED daemon (BH_NAME=x-intel) attached to the
- * USER's browser (D11: never spawn, never reshape/close windows, never touch
- * a tab the user is reading).
+ * x-worker — the business loop. Runs in rmux session "x-monitor";
+ * supervisor-core heals the session. Drives a DEDICATED daemon
+ * (BH_NAME=x-intel) attached to the USER's browser (D11: never spawn,
+ * never reshape/close windows, never touch a tab the user is reading).
  *
  * Trigger: poll every 5s for the x.com "N new posts" indicator; the moment a
  * count shows, a harvest round fires (X_INTERVAL is only the fallback cap).

@@ -1,10 +1,12 @@
 /**
- * supervisor-core — generic guardian for resident apps that do not own a
- * supervisor. Every beat: session gone → spawn; heartbeat past timeout →
- * kill+spawn. A missing heartbeat is not stale while the session is alive
- * (cold start / first sweep) or within SPAWN_GRACE of a restart we issued.
- * `data/<name>.status.json` state `stopped` is honored — unwatch stays stopped.
- * x-intel keeps its own supervisor; listing its worker here raced kill+spawn.
+ * supervisor-core — generic guardian for resident apps (page-detect, x-intel,
+ * …). Register each in SUPERVISED. Do not supervise this process itself.
+ * Every beat: session gone → spawn; heartbeat past timeout → kill+spawn.
+ * A missing heartbeat is not stale while the session is alive (cold start)
+ * or within SPAWN_GRACE of a restart we issued.
+ * `data/<name>.status.json` state `stopped` is honored.
+ * onDemand apps (x-intel) are not spawned until the user starts them
+ * (status running/degraded, or the session is already alive).
  */
 
 import { appendFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -71,6 +73,21 @@ function distDir() {
   return null;
 }
 
+function workspaceDir() {
+  return process.env.BH_BROWSER_WORKSPACE
+    ?? path.join(bhHome(), 'browser-workspace');
+}
+
+function cliJs() {
+  const d = distDir();
+  if (!d) throw new Error('no cli.js path');
+  return path.join(d, 'cli.js');
+}
+
+function appEntry(name) {
+  return path.join(workspaceDir(), 'apps', `${name}.mjs`);
+}
+
 async function importDist(module) {
   const d = distDir();
   if (!d) throw new Error('no dist path found — run bh --start or bh skill sync first');
@@ -78,8 +95,8 @@ async function importDist(module) {
 }
 
 /**
- * Unified supervision registry. Each entry owns its rmux session, heartbeat
- * file and restart command. Timeouts are seconds.
+ * Unified supervision registry for resident apps (not this guardian itself).
+ * Add a row when a new resident app needs healing. Timeouts are seconds.
  */
 const SUPERVISED = [
   {
@@ -87,12 +104,15 @@ const SUPERVISED = [
     session: 'page-detect',
     heartbeat: 'page-watch.json',
     timeout: 60,
-    command: () => {
-      const d = distDir();
-      const cli = d ? path.join(d, 'cli.js') : null;
-      if (!cli) throw new Error('no cli.js path');
-      return `"${process.execPath}" "${cli}" --name page-detect page-detect watch --watch-loop --interval 10`;
-    },
+    command: () => `"${process.execPath}" "${cliJs()}" --name page-detect page-detect watch --watch-loop --interval 10`,
+  },
+  {
+    name: 'x-intel',
+    session: 'x-monitor',
+    heartbeat: 'x_worker.heartbeat',
+    timeout: 120,
+    onDemand: true,
+    command: () => `"${process.execPath}" "${appEntry('x-intel')}" worker`,
   },
 ];
 
@@ -109,12 +129,13 @@ export async function main(argv = [], ctx) {
     const actions = [];
     try {
       for (const e of SUPERVISED) {
-        if (appStatusState(e.name) === 'stopped') {
+        const st = appStatusState(e.name);
+        if (st === 'stopped') {
           state[e.name] = '已停止';
           continue;
         }
         const alive = await rmux.hasSession(e.session).catch(() => false);
-        if (e.onDemand && !alive) {
+        if (e.onDemand && st !== 'running' && st !== 'degraded' && !alive) {
           state[e.name] = '未运行';
           continue;
         }
