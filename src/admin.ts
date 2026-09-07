@@ -249,8 +249,13 @@ export async function runDoctor(opts: { requireExistingDaemon?: boolean } = {}):
   // ffmpeg (informational — video export degrades to an HTML slideshow without it)
   let ffmpegDetail = 'not installed (video export degrades to HTML slideshow)';
   try {
-    const r = spawnSync('ffmpeg', ['-version'], { timeout: 5000, windowsHide: true, encoding: 'utf8' });
-    if (r.status === 0) ffmpegDetail = String(r.stdout ?? '').split('\n')[0]?.trim() ?? 'installed';
+    const { ffmpegPath } = await import('./video.js');
+    const bin = ffmpegPath();
+    if (bin) {
+      const r = spawnSync(bin, ['-version'], { timeout: 5000, windowsHide: true, encoding: 'utf8' });
+      const ver = String(r.stdout ?? '').split('\n')[0]?.trim() ?? 'installed';
+      ffmpegDetail = `${ver} (${bin})`;
+    }
   } catch { /* absent */ }
   checks.push({ name: 'ffmpeg', ok: true, detail: ffmpegDetail });
 

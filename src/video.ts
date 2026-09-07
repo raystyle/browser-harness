@@ -17,13 +17,40 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-export function ffmpegAvailable(): boolean {
-  try {
-    const r = spawnSync('ffmpeg', ['-version'], { timeout: 5000, windowsHide: true });
-    return r.status === 0;
-  } catch {
-    return false;
+let cachedFfmpeg: string | null | undefined;
+
+/** Absolute ffmpeg executable, or null. Merges Windows User+Machine PATH so
+ *  GUI/agent processes that skipped the pwsh profile still find a user install. */
+export function ffmpegPath(): string | null {
+  if (cachedFfmpeg !== undefined) return cachedFfmpeg;
+  const exe = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const dirs: string[] = [];
+  const add = (raw: string | undefined) => {
+    if (!raw) return;
+    for (const d of raw.split(path.delimiter)) {
+      const t = d.trim();
+      if (t) dirs.push(t);
+    }
+  };
+  add(process.env.PATH ?? process.env.Path);
+  if (process.platform === 'win32') {
+    try {
+      const r = spawnSync('powershell.exe', ['-NoProfile', '-Command',
+        "[Environment]::GetEnvironmentVariable('Path','User') + ';' + [Environment]::GetEnvironmentVariable('Path','Machine')"],
+        { timeout: 8000, windowsHide: true, encoding: 'utf8' });
+      add(String(r.stdout ?? ''));
+    } catch { /* keep process PATH */ }
   }
+  for (const d of dirs) {
+    const p = path.join(d, exe);
+    if (existsSync(p)) { cachedFfmpeg = p; return p; }
+  }
+  cachedFfmpeg = null;
+  return null;
+}
+
+export function ffmpegAvailable(): boolean {
+  return ffmpegPath() !== null;
 }
 
 export type Brief = {
@@ -140,10 +167,10 @@ export function exportVideo(recDir: string, brief: Brief, outPath: string): { ok
     return `drawbox=x=${r.x}:y=${r.y}:w=${r.w}:h=${r.h}:color=black@1:t=fill:enable='between(t,${fromT.toFixed(2)},${toT.toFixed(2)})'`;
   }).join(',');
   const vf = redacts ? `${redacts}` : null;
-  const args = ['-y', '-f', 'concat', '-safe', '0', '-i', concat, '-vsync', 'vfr', '-r', '30', '-pix_fmt', 'yuv420p'];
+  const args = ['-y', '-f', 'concat', '-safe', '0', '-i', concat, '-fps_mode', 'vfr', '-pix_fmt', 'yuv420p'];
   if (vf) args.push('-vf', vf);
   args.push(outPath);
-  const r = spawnSync('ffmpeg', args, { timeout: 300_000, windowsHide: true });
+  const r = spawnSync(ffmpegPath()!, args, { timeout: 300_000, windowsHide: true });
   if (r.status !== 0) {
     throw new Error(`ffmpeg failed (${r.status}): ${String(r.stderr ?? '').slice(-300)}`);
   }
@@ -160,7 +187,9 @@ export function reviewContactSheet(recDir: string, brief: Brief): string | null 
   const concat = path.join(recDir, 'review-frames.txt');
   writeFileSync(concat, visible.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n') + '\n', 'utf8');
   const cols = Math.min(6, visible.length);
-  const r = spawnSync('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', concat,
+  const bin = ffmpegPath();
+  if (!bin) return null;
+  const r = spawnSync(bin, ['-y', '-f', 'concat', '-safe', '0', '-i', concat,
     '-vf', `select=not(mod(n\\,1)),scale=320:-1,tile=${cols}x${Math.ceil(visible.length / cols)}`, sheet],
     { timeout: 60_000, windowsHide: true });
   return r.status === 0 ? sheet : null;
