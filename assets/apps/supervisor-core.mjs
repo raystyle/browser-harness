@@ -164,7 +164,7 @@ export async function main(argv = [], ctx) {
     }
 
     const metrics = [
-      { label: '监督', value: `${SUPERVISED.length} 应用` },
+      { label: '守护进程', value: `${SUPERVISED.length} 应用` },
       ...SUPERVISED.map(e => ({ label: e.name, value: state[e.name] })),
     ];
     writeStatus({
