@@ -58,6 +58,6 @@ export async function main(argv = [], ctx) {
     console.log(`imported ok=${ok} failed=${failed} verified=${verified}/${(payload.cookies ?? []).length}`);
     return failed > 0 ? 1 : 0;
   }
-  process.stderr.write('bh: usage: bh cookies export|import ...\n');
+  process.stderr.write('bh: usage: bh cookie-io export|import ...\n');
   return 2;
 }
