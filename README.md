@@ -16,11 +16,11 @@
 | 技能与资产分发 | `bh skill status/sync`（三线哈希防漂移、只增不删） |
 | 抓取/搜索 | `bh web-fetch`、`bh google-search`（两步契约：`--top N` 出指标，`pluck gs_search` 取数）、`bh medium-search`（站内搜索 + `grab <url>` 文章转 markdown，两步契约 `ms_search`/`ms_article`）、`bh bing-search`（两步契约：`--top N` 出指标，`pluck bs_search` 取数） |
 | Cookie 迁移 | `bh cookie-io export/import` |
-| X 监控 | `bh x-intel [start]`（附着你的浏览器，worker 在 rmux `x-monitor`；由 supervisor-core 守护）/ `bh x-intel stop`（写 stopped → 杀 worker → 专属 daemon）/ `bh x-intel search` / `bh x-intel harvest` |
+| X 监控 | `bh x-intel [start]`（附着你的浏览器，worker 在 rmux `x-monitor`，start 自动带起 supervisor-core 守护）/ `bh x-intel stop`（先写 stopped 再杀 worker 与专属 daemon）/ `bh x-intel search` / `bh x-intel harvest` |
 | 录制/视频 | `bh record …` -> `bh video init/export` |
 | 状态探测 | `bh sessions`：对象模型（instance/browser/session/tab）+ 全实例清单 + 窗口分组 tab 表 + 新任务附着策略（专属 tab 铁律 / app 复用 / `--new-tab` 显式新开 / 用户 tab 显式授权） |
-| 网页看板 | `bh dashboard`：只读看板 http://127.0.0.1:9870（SSE 推送）：守护实例/附着面/rmux 监督/worker 心跳/页面健康判定/事件流尾；墙类判定（含 Google 验证/Cloudflare 挑战/白屏持久化/资源阻断）边沿弹 Chrome 系统通知（requireInteraction 驻留，一次授权常驻）；独立应用卡片区（描述/运行流水/日志行/库存，可折叠拖拽）；部署信息栏默认隐藏；页面版本握手自动重载。看板不是工作 tab，default 与应用禁止附着 |
-| 页面守护 | `bh page-detect watch [--interval S]`：常驻只读探测全部页面，墙/白屏/资源阻断自动告警（`unwatch` 停、`status` 查）；单次诊断 `bh page-detect [url片段]` 七判保留 |
+| 网页看板 | `bh dashboard`：只读看板 http://127.0.0.1:9870（SSE 每秒推送）：守护实例/附着面/rmux 监督/worker 心跳/页面健康判定/常驻应用卡片区（描述/运行流水/日志行/库存，折叠拖拽）；墙类判定（含 Google 验证/Cloudflare 挑战/白屏持久化/资源阻断）经已授权源弹 Chrome 系统通知（requireInteraction 驻留）；部署信息栏默认隐藏；页面版本握手自动重载。看板不是工作 tab，default 与应用禁止附着 |
+| 页面守护 | `bh page-detect watch [--interval S]`：常驻只读探测全部页面，墙类边沿、白屏持久化（连续 2 轮）自动告警；`--interval` 持久化，守护重拉沿用（`unwatch` 停、`status` 查）；单次诊断 `bh page-detect [url片段]` 七判保留 |
 | 验证码图 OCR | `bh super-ocr [url片段]`：扫描当前页定位验证码图片并识别（不填写）；`locate` 只定位；`setup` 安装 ppu-paddle-ocr 到 `<BH_HOME>/ocr`；交互式拼图/滑块报 CAPTCHA\|WALL |
 | 初始化 | 首次使用判系统环境自动带起：默认浏览器守护 + rmux 守护 + 看板 + page-detect watch + supervisor-core（幂等；Node ≥22 版本闸）。page-detect 使用独立实例，首次会多弹一次 Chrome Allow |
 | 显式新 tab | `bh --new-tab '<js>'`（新开 about:blank 附着执行） |
@@ -40,6 +40,22 @@
 ```
 
 **协议即 API。** Chrome 能做的，你就能调用。
+
+## 内置应用
+
+一次性应用经 default 守护进程执行；常驻应用住 rmux 会话、由 supervisor-core 统一守护，状态在 `bh dashboard` 的「应用」卡片区可见。墙与人机验证一律如实报告，不硬闯。
+
+| 应用 | 命令 | 说明 |
+|---|---|---|
+| web-fetch | `bh web-fetch <url> [--markdown\|--text] [--browser]`，或 `--current` 抓当前页 | 抓取网页正文，必要时自动升级为真实浏览器渲染 |
+| google-search | `bh google-search <query> [--top N]`，再 `pluck [cache]` 取数 | 谷歌搜索：两步契约（指标先落盘、取数恒小）；CAPTCHA/墙如实报不重试 |
+| bing-search | `bh bing-search <query> [--top N] [--page N]`，再 `pluck [cache]` | 必应搜索：同两步契约，常驻 `__bs` SDK + 就绪判官 |
+| medium-search | `bh medium-search <query> [--top N]`；`grab <url> [--out file]` | Medium 站内搜索 + 文章正文转 Markdown（两步契约 `ms_search`/`ms_article`） |
+| cookie-io | `bh cookie-io export\|import`（默认按域名，`--domain`/`--all` 控制） | 迁移浏览器 Cookie 登录态；默认拒绝全量导出 |
+| page-detect | `bh page-detect [url片段]`；`watch [--interval S]` / `unwatch` / `status` | 单次诊断七判；watch 常驻只读探测全部 http(s) 页面，墙类边沿告警、白屏连续 2 轮才告警；`--interval` 持久化，守护与 companions 重拉沿用 |
+| super-ocr | `bh super-ocr [url片段] [--top N] [--save]`；`locate` / `setup` / `ready` | 扫描页面定位验证码图并用 PaddleOCR 识别（不自动填写）；交互式拼图/滑块报 CAPTCHA\|WALL；引擎按需装到 `<BH_HOME>/ocr` |
+| x-intel | `bh x-intel start` / `stop` / `search <kw>` / `harvest` | X 时间线持续监控，自动收割新帖到本地 SQLite（`data/x_tweets.db`）；worker 住 rmux `x-monitor`，`start` 自动带起 supervisor-core；专属 `BH_NAME=x-intel` daemon，不占 default |
+| supervisor-core | 常驻，随 default 守护进程自动拉起（无需手动） | 统一守护常驻应用：会话消失、心跳超时、无心跳挂死自动重启；`data/<name>.status.json` 的 `stopped` 状态被尊重；按需应用（x-intel）未启动不拉起 |
 
 ## 安装部署
 
@@ -99,6 +115,24 @@ bh skill sync           # 铺装 workspace（apps + domain-skills + sdk，只增
 bh doctor               # 体检：可附着浏览器 / daemon / 资产一致性
 ```
 
+### 配置（环境变量）
+
+全部有默认值，零配置可用；按需覆盖：
+
+| 变量 | 作用 | 默认 |
+|---|---|---|
+| `BH_HOME` | 用户数据根目录（workspace/data/runtime/tmp 都在它下面） | `~/.config/browser-harness` |
+| `BH_NAME` | 实例名，多实例端口自动派生 | `default` |
+| `BH_DASHBOARD_PORT` | 只读看板端口 | `9870` |
+| `BH_CDP_URL` / `BH_CDP_WS` | 钉死连接目标（`/json/version` HTTP 或 WS 直连） | 自动发现可附着浏览器 |
+| `BH_ATTACH_URL_MATCH` | 应用 daemon 钉住既有页面（不新建 tab） | 未设 |
+| `BH_IDLE_TIMEOUT` | daemon 空闲自退秒数（只关自身连接，不动浏览器） | `1800` |
+| `BH_EVAL_TIMEOUT` | CLI 单次求值秒数；超时后求值可能仍在 daemon 上，期间新 eval 被拒（429） | `300` |
+| `BH_IPC_TIMEOUT` / `BH_NAVIGATE_TIMEOUT` / `BH_SCREENSHOT_TIMEOUT` | CDP 调用 / 导航 / 截图的秒级预算 | `5` / `30` / `60` |
+| `BH_DOMAIN_SKILLS` | 站点知识目录覆盖 | workspace 内 `domain-skills/` |
+| `X_RMUX_SESSION` 等 `X_*` | x-intel 族调优 | `x-monitor` 等 |
+| `CDP_REPL_PORT` / `CDP_REPL_LOG` | 旧名兼容：daemon 端口 / 日志路径 | 派生 / `%TEMP%\bh.log` |
+
 ### 浏览器附着开启（一次性）
 
 bh 永不启动浏览器，它附着你自己打开的 Chrome（144+）：
@@ -125,7 +159,6 @@ Run: 从 https://github.com/raystyle/browser-harness/releases 下载 browser-har
 browser 技能驱动我的浏览器：查看我打开的所有标签页，按主题分组，
 并截取最有意思的一个的截图。
 ```
-```
 
 如果 Chrome 弹出远程调试确认框，勾选即可，agent 就是通过它接入的。
 
@@ -137,14 +170,18 @@ browser 技能驱动我的浏览器：查看我打开的所有标签页，按主
 - `src/cli.ts`：`bh` CLI，自动拉起常驻 server 并转发代码片段
 - `src/repl.ts`：Node HTTP server，持有一个持久 `Session`
 - `src/session.ts`：`Session` 类，传输层、连接、target 路由、事件
+- `src/helpers.ts`：语义层 snake_case 助手（与 Python 主仓同名同参）
+- `src/dashboard.ts`：只读网页看板（127.0.0.1:9870）
 - `scripts/gen.ts`：代码生成，读取 `protocol/browser_protocol.json` + `protocol/js_protocol.json` -> 生成带类型的封装
 - `src/generated.ts`：每个 CDP 方法对应 `session.<Domain>.<method>(params)`（生成物；运行 `npm run gen` 再生成）
 
 完整模块清单见 `INDEX.md` 第二节。
 
-没有 helpers 文件。没有 `click()`、没有 `goto()`、没有 `upload_file()`，只有协议本身，带类型。
+协议层没有 `click()`、没有 `goto()`、没有 `upload_file()`，只有协议本身，带类型；语义层（`goto_url` / `js` / `click_at_xy` / `wait_for_render` 等）是 Python 主仓的忠实移植，两层并存。
 
 ## 为什么不预置封装？
+
+（这一节说的是协议层。语义层助手是跨语言忠实移植、与 Python 版同名同参，不是新发明的封装。）
 
 每个 helper 都是对 CDP 既有能力的遮蔽。`click(x, y)` 藏掉了 `Input.dispatchMouseEvent`，它有 14 个 LLM 可能用到的参数（button、clickCount、modifiers、pointerType、force、tangentialPressure……）。一个只暴露其中三个的 harness，等于悄悄限制了 agent 能做的事。
 
@@ -152,7 +189,7 @@ browser 技能驱动我的浏览器：查看我打开的所有标签页，按主
 - **没有版本漂移**。SDK 从上游协议 JSON 重新生成；换上新 JSON，新 Chrome 方法立刻可用。
 - **没有"helper 覆盖不了我的场景"的绕路**。CDP 能做的，agent 就能直接调，类型安全、当天可用。
 
-你唯一能找到的几个"helper"，都是 CDP 自身缺失的东西：
+协议层里仅有的几个便利原语，都是 CDP 自身缺失的东西：
 
 - `listPageTargets()`：从 `Target.getTargets` 里过滤掉 `chrome://` / `devtools://` 内部页
 - `resolveWsUrl({wsUrl|port|profileDir})`：读取 `DevToolsActivePort`（兼容 Chrome 144+）
