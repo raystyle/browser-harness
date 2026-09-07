@@ -64,19 +64,19 @@ export async function main(argv = [], ctx) {
   let verdict, advice;
   if (bodyLen === 0 && challengeSeen) {
     verdict = 'challenge-stuck';
-    advice = 'anti-bot challenge loaded but its calls stalled — reload the page once to re-run it; repeated stalls = network path to the challenge endpoints';
+    advice = '重载一次重跑人机验证；反复卡死 = 到挑战端点的网络路径问题';
   } else if (bodyLen === 0 && fails.some(f => /TIMED_OUT/.test(f.error))) {
     verdict = 'network-stalled';
-    advice = 'core requests timing out with a blank page — check the network path / proxy for this site';
+    advice = '核心请求超时且页面空白：检查该站网络路径/代理';
   } else if (wallWords || statuses.filter(s => s.startsWith('403') || s.startsWith('429')).length >= 3) {
     verdict = 'blocked';
-    advice = 'wall/captcha/rate-limit detected — report honestly, do not force through';
+    advice = '检测到墙/验证码/限流：如实报告不硬闯';
   } else if (signIn) {
     verdict = 'login-wall';
-    advice = 'sign-in form rendered — stop and let the user log in (credentials are out of bounds)';
+    advice = '登录表单已渲染：停下让用户登录，凭据越界';
   } else if (bodyLen === 0) {
     verdict = 'blank';
-    advice = 'page renders no text and no failure signature — capture a screenshot and reload to compare';
+    advice = '页面无文本且无失败签名：截图比对后重载';
   } else {
     // asset-domain starvation: the shell loads but the content engine's
     // CDN (chunks/fonts) is throttled/refused — page renders as a skeleton.
@@ -86,10 +86,10 @@ export async function main(argv = [], ctx) {
     ].filter(f => /cdn|glyph|static|assets/.test(f.url) && /(ERR_FAILED|429|403)/.test(String(f.err)));
     if (assetFails.length >= 3) {
       verdict = 'asset-throttled';
-      advice = 'static/asset domains refused (429/ERR_FAILED cluster) while the main domain serves the shell — egress-IP rate limiting: switch exit node or wait out the window';
+      advice = '资源域被拒而主域存活：出口 IP 限流，换出口或等窗口';
     } else {
       verdict = 'ok';
-      advice = 'page interactive; diagnose interactively if something specific fails';
+      advice = '页面可交互';
     }
   }
 
