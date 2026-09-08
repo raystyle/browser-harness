@@ -685,9 +685,9 @@ function buildProgram(): Command {
         // Warm the dedicated engine daemon (BH_NAME=engine, pinned to the
         // engine's WS through its env), detached like any other daemon.
         const { spawn } = await import('node:child_process');
-        const child = spawn(process.execPath, [cliJs, '--name', 'engine', '--start'], {
+        const child = spawn(process.execPath, [cliJs, '--name', 'headless-engine', '--start'], {
           detached: true, stdio: 'ignore', windowsHide: true,
-          env: { ...process.env, BH_NAME: 'engine', BH_CDP_WS: h.wsUrl },
+          env: { ...process.env, BH_NAME: 'headless-engine', BH_CDP_WS: h.wsUrl },
         });
         child.unref();
         // Wait for the engine daemon to be reachable before injecting cookies.
@@ -696,7 +696,7 @@ function buildProgram(): Command {
           for (let i = 0; i < 20; i++) {
             await sleep(500);
             try {
-              const rec = readInstanceRecord('engine');
+              const rec = readInstanceRecord('headless-engine');
               if (rec) { const rr = await fetch(`http://127.0.0.1:${rec.port}/health`, { signal: AbortSignal.timeout(800) }); if (rr.ok) break; }
             } catch { /* still warming */ }
           }
@@ -730,7 +730,7 @@ function buildProgram(): Command {
                 mkdirSync(runtimeDir(), { recursive: true });
                 writeFileSync(await import('node:path').then(m => m.join(runtimeDir(), 'engine-cookies.json')), JSON.stringify(usable), 'utf8');
                 // push through the engine daemon (its session owns the engine)
-                const erec = readInstanceRecord('engine');
+                const erec = readInstanceRecord('headless-engine');
                 if (erec) {
                   const { evalOn } = await import('./admin.js');
                   await evalOn(erec.port,
@@ -741,13 +741,13 @@ function buildProgram(): Command {
           } catch { cookiesNote = `；cookie 克隆失败（用户浏览器未附着？bh doctor）`; }
         }
         process.stdout.write(`engine up: pid ${h.pid}, ws ${h.wsUrl}${cookiesNote}\n`);
-        process.stdout.write(`用法：BH_NAME=engine bh '<js>'（或 bh web-fetch <url> --engine）\n`);
+        process.stdout.write(`用法：BH_NAME=headless-engine bh '<js>'（或 bh web-fetch <url> --engine）\n`);
         process.exit(EXIT.ok);
       }
       if (s === 'stop') {
         // Engine daemon first (it holds a WS to the engine), then the engine.
         const { spawnSync } = await import('node:child_process');
-        spawnSync(process.execPath, [cliJs, '--name', 'engine', '--stop'], { stdio: 'ignore', windowsHide: true, timeout: 30_000 });
+        spawnSync(process.execPath, [cliJs, '--name', 'headless-engine', '--stop'], { stdio: 'ignore', windowsHide: true, timeout: 30_000 });
         const r = await engine.stopEngine();
         console.log(`engine stop: ${r.note}`);
         process.exit(EXIT.ok);
@@ -758,7 +758,7 @@ function buildProgram(): Command {
           try {
             const { health } = await import('./admin.js');
             const { readInstanceRecord } = await import('./paths.js');
-            const rec = readInstanceRecord('engine');
+            const rec = readInstanceRecord('headless-engine');
             return rec ? await health(rec.port, 800) : null;
           } catch { return null; }
         })();

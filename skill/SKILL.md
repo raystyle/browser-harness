@@ -54,7 +54,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | `bh sessions` | 实例清单 + 窗口分组 tab 表 + 附着策略 |
 | `bh dashboard [start\|stop\|status]` | 只读看板 127.0.0.1:9870（SSE 推送；墙类弹 Chrome 系统通知 D16/D18；独立应用卡片区 D17：描述/运行流水/日志行/库存 + 折叠拖拽；部署信息栏默认隐藏；页面版本握手自动重载） |
 | `bh rmux` | rmux 监督面：会话/pane 树 |
-| `bh engine start [--cookies <domain>] \| stop \| status` | 自起无头 Chrome 引擎：临时 profile + 专属 daemon（BH_NAME=engine，BH_CDP_WS 钉引擎）；`--cookies` 从用户浏览器克隆该域登录态；`BH_NAME=engine bh '<js>'` 操作引擎；`bh web-fetch <url> --engine` 走引擎抓取；用完即杀绝不碰用户 profile |
+| `bh engine start [--cookies <domain>] \| stop \| status` | 自起无头 Chrome 引擎：临时 profile + 专属 daemon（BH_NAME=headless-engine，BH_CDP_WS 钉引擎）；`--cookies` 从用户浏览器克隆该域登录态；`BH_NAME=headless-engine bh '<js>'` 操作引擎；`bh web-fetch <url> --engine` 走引擎抓取；用完即杀绝不碰用户 profile |
 | `bh --new-tab '<js>'` | 显式新开 about:blank 附着执行 |
 | `bh run <name>` / `bh <name>` | 显式/路由调用应用 |
 | `bh skill status\|sync` | 技能三线同步 + workspace 铺装 |

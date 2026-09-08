@@ -2,6 +2,10 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.6.1] - 2026-09-08
+
+- **引擎实例改名 headless-engine**：`bh engine` 命令名不变，专属 daemon 实例（BH_NAME/注册表/web-fetch 转发）统一为 `headless-engine`（语义精确）；修全局替换误伤命令名导致的 `bh engine` 掉落裸片段路径；二进制定位 CLIXML 噪音收敛（stderr 隔离）
+
 ## [0.6.0] - 2026-09-08
 
 - **封版前增补（A+B+C+D37 PoC）**：rmux 会话 cwd 统一落 BH_HOME（四处 ensureSession 补 cwd，安装态进程不再挂仓库目录）；`/health` 增 `buildTime`（dist mtime），漂移检测比对版本+构建戳，同版本号热修重装不再骗过 upgrade（当天踩中两次）；Defuddle 四站实测基线入 fetch-analyze 配方（medium 专用提取器最优、GitHub generic 可用、Wikipedia/Reddit 降级兜底、断网如实报）；D37 引擎 PoC 实证：自起 headless Chrome（临时 profile + port 0）经 `BH_CDP_WS` 连接，D11 全部纪律与 D35 引用机制在 headless 上完整工作，用完即杀用户面无扰，自起 headless 是 Lightpanda 中层的超集方案（S003 增补），正式集成待 D37 立项

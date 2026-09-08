@@ -24,7 +24,7 @@ bh 'await session.Page.navigate({url: "https://example.com"})'
 
 ```bash
 # 方式一：Release 包（推荐）
-npm install -g ./browser-harness-ts-0.6.0.tgz    # 从 Releases 下载
+npm install -g ./browser-harness-ts-0.6.1.tgz    # 从 Releases 下载
 # 方式二：源码
 git clone https://github.com/raystyle/browser-harness.git && cd browser-harness
 npm install && npm run build && npm pack && npm install -g ./browser-harness-ts-*.tgz
@@ -65,7 +65,7 @@ agent 只需一句提示即可接入（技能自动同步到 Claude Code 与 Cod
 ```bash
 bh engine start                    # 临时 profile，用完即杀
 bh engine start --cookies github.com   # 顺带从你的浏览器克隆该域登录态
-BH_NAME=engine bh '<js>'           # 像操作任何浏览器一样操作引擎
+BH_NAME=headless-engine bh '<js>'  # 像操作任何浏览器一样操作引擎
 bh web-fetch <url> --engine        # 抓取走引擎
 bh engine stop                     # 杀进程、清目录，你的浏览器全程无扰
 ```

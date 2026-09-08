@@ -32,7 +32,7 @@ export function findChromeBinary(): string | null {
       const ps = `$k='HKLM:\\SOFTWARE\\Clients\\StartMenuInternet'; foreach($s in 'Google Chrome','Google Chrome Dev','Google Chrome Beta','Google Chrome SxS'){$p=(Get-ItemProperty -Path ($k+'\\'+$s+'\\shell\\open\\command') -ErrorAction SilentlyContinue).'(default)'; if($p){ $p.Trim('"'); break }}`;
       const enc = Buffer.from(ps, 'utf16le').toString('base64');
       const out = execSync(`powershell -NoProfile -EncodedCommand ${enc}`,
-        { encoding: 'utf8', timeout: 8000, windowsHide: true });
+        { encoding: 'utf8', timeout: 8000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
       // CLIXML progress records can ride along on stdout — keep the exe line.
       const exeLine = out.split(/\r?\n/).map(l => l.trim()).find(l => /\.exe$/i.test(l));
       if (exeLine) return exeLine;

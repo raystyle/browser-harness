@@ -30,7 +30,7 @@ export async function main(argv = [], ctx) {
     const path = await import('node:path');
     const home = process.env.BH_HOME ?? path.join(process.env.USERPROFILE ?? '', '.config', 'browser-harness');
     try {
-      const rec = JSON.parse(readFileSync(path.join(home, 'runtime', 'bh-engine.port'), 'utf8'));
+      const rec = JSON.parse(readFileSync(path.join(home, 'runtime', 'bh-headless-engine.port'), 'utf8'));
       const probe = await fetch(`http://127.0.0.1:${rec.port}/health`, { signal: AbortSignal.timeout(1200) });
       if (!probe.ok) throw new Error('engine daemon unhealthy');
     } catch {
@@ -40,7 +40,7 @@ export async function main(argv = [], ctx) {
     const { spawnSync } = await import('node:child_process');
     const r = spawnSync(process.execPath, [process.argv[1], 'web-fetch', url, '--browser'], {
       stdio: 'inherit', windowsHide: true,
-      env: { ...process.env, BH_NAME: 'engine' },
+      env: { ...process.env, BH_NAME: 'headless-engine' },
     });
     return r.status ?? 1;
   }
