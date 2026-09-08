@@ -410,7 +410,7 @@ export class Harness {
    * Healed CDP round trip. Explicit sessionIds are never silently redirected;
    * implicit calls to a dead session re-attach the last target and retry once.
    */
-  async cdp(method: string, params: Record<string, unknown> = {}, opts: { sessionId?: string; timeoutMs?: number } = {}): Promise<any> {
+  async cdp(method: string, params: Record<string, unknown> = {}, opts: { sessionId?: string | undefined; timeoutMs?: number | undefined } = {}): Promise<any> {
     if (method === 'Target.closeTarget' && params?.targetId) {
       await this.reclaimIfMarked(String(params.targetId));
     }

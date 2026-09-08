@@ -12,7 +12,7 @@ async function meta<T>(port: number, op: string, payload: unknown, timeoutMs?: n
   const code = `return await __bh_meta(${JSON.stringify(op)}, ${JSON.stringify(payload)})`;
   const res = await fetch(`http://127.0.0.1:${port}/eval`, {
     method: 'POST', body: code,
-    signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
+    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
   });
   const body = await res.text();
   if (!res.ok) throw new Error(body.trim().split('\n')[0] ?? `remote ${op} failed (${res.status})`);

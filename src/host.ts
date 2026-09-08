@@ -8,7 +8,7 @@
  * drag the whole REPL process into the plugin's import graph.
  */
 
-export type CdpEvent = { method: string; params: any; sessionId?: string };
+export type CdpEvent = { method: string; params: any; sessionId?: string | undefined };
 /** Ring-buffer enrichment (invisible to drain consumers): monotonic seq + wall time,
  *  so dashboards can accumulate peeked events without collapsing duplicates. */
 export type SeqEvent = CdpEvent & { seq: number; t: number };
@@ -16,7 +16,7 @@ export type SeqEvent = CdpEvent & { seq: number; t: number };
 export interface Host {
   /** One CDP round trip; carries stale-session self-heal and the default 5s budget. */
   cdp(method: string, params?: Record<string, unknown>,
-      opts?: { sessionId?: string; timeoutMs?: number }): Promise<any>;
+      opts?: { sessionId?: string | undefined; timeoutMs?: number | undefined }): Promise<any>;
 
   /** Drain (and clear) the event ring buffer. */
   drainEvents(): Promise<CdpEvent[]>;

@@ -79,7 +79,7 @@ function assertRealSkillMd(): void {
   }
 }
 
-export type SkillStatus = { tool: string; dir: string; state: 'up to date' | 'OUTDATED' | 'not installed'; hash?: string };
+export type SkillStatus = { tool: string; dir: string; state: 'up to date' | 'OUTDATED' | 'not installed'; hash?: string | undefined };
 
 export function skillStatus(): SkillStatus[] {
   assertRealSkillMd();

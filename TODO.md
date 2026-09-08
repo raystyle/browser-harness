@@ -15,6 +15,14 @@
 | 文档滞后六处清理 | 已完成 | INDEX（16 篇/74 用例/primitives 登记）、PRD D13 已交付、GOAL 锚点轮转、ROADMAP 收口、TODO 头部 | 内部 review |
 | tag v0.3.0 | 已完成 | npm test 全绿后打 tag | R001 发布 |
 
+## D28 任务清单
+
+| 任务项 | 进度 | 说明 | 出处 |
+| --- | --- | --- | --- |
+| TypeScript 7 升级 | 已完成 | 5.9.3 至 7.0.2（npm latest）；NodeNext 新式配置零错误直过 | PRD D28 |
+| 严格开关清零 | 已完成 | exactOptionalPropertyTypes 12 处修复（admin/remote/dashboard/host/harness/rmux/skills）；noImplicitOverride/isolatedModules/incremental 同开 [实证: tsc --noEmit 0 错误 + npm test 74/74] | 用户推荐基线 |
+| module 取舍 | 已完成 | 保留 NodeNext（纯 Node ESM 库），不采纳 preserve/bundler | 用户表格「Node 库用 nodenext」 |
+
 ## D27 任务清单
 
 | 任务项 | 进度 | 说明 | 出处 |

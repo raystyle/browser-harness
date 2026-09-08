@@ -7,3 +7,4 @@ smoke-test.png
 .bh-dev/
 .ohmyagents/
 .oma/
+*.tsbuildinfo

@@ -45,9 +45,9 @@ function instanceNames(): string[] {
 
 type TabRow = { targetId: string; url: string; title: string; active: boolean; marked: boolean };
 type InstanceRow = {
-  name: string; alive: boolean; port: number; pid?: number; uptime?: number;
-  connected?: boolean; replacements?: number; activeTab: TabRow | null;
-  tabs: TabRow[]; verdict?: { verdict: string; advice: string }; error?: string;
+  name: string; alive: boolean; port: number; pid?: number | undefined; uptime?: number | undefined;
+  connected?: boolean | undefined; replacements?: number; activeTab: TabRow | null;
+  tabs: TabRow[]; verdict?: { verdict: string; advice: string } | undefined; error?: string | undefined;
 };
 
 const MARKER_HEAD = '\u{1F434}';

@@ -38,7 +38,7 @@ export async function health(port: number, timeoutMs = 1000): Promise<HealthInfo
 export async function evalOn<T = unknown>(port: number, code: string, timeoutMs?: number): Promise<T> {
   const res = await fetch(`http://127.0.0.1:${port}/eval`, {
     method: 'POST', body: code,
-    signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
+    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
   });
   const body = await res.text();
   if (!res.ok) throw new Error(body.trim().split('\n')[0] ?? `eval failed (${res.status})`);
@@ -91,13 +91,17 @@ function rmuxInfo(): { installed: boolean; version?: string; path?: string } {
     if (existsSync(c)) {
       try {
         const r = spawnSync(c, ['-V'], { timeout: 5000, windowsHide: true, encoding: 'utf8' });
-        return { installed: true, version: String(r.stdout ?? '').trim() || undefined, path: c };
+        const version = String(r.stdout ?? '').trim();
+        return { installed: true, ...(version ? { version } : {}), path: c };
       } catch { /* fall through */ }
     }
   }
   try {
     const r = spawnSync('rmux', ['-V'], { timeout: 5000, windowsHide: true, encoding: 'utf8' });
-    if (r.status === 0) return { installed: true, version: String(r.stdout ?? '').trim() || undefined, path: 'rmux (PATH)' };
+    if (r.status === 0) {
+      const version = String(r.stdout ?? '').trim();
+      return { installed: true, ...(version ? { version } : {}), path: 'rmux (PATH)' };
+    }
   } catch { /* not installed */ }
   return { installed: false };
 }

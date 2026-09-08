@@ -2,6 +2,10 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [Unreleased]
+
+- **TypeScript 7 升级与编译配置对齐（D28）**：devDependencies typescript 5.9.3 升 7.0.2（原生编译器），零错误直过；tsconfig 增量严格开关 `exactOptionalPropertyTypes`（清 12 处「可选属性赋 undefined」：接口侧显式 `| undefined` 联合 + fetch signal 条件展开 + rmux version 条件展开）、`noImplicitOverride`、`isolatedModules`、`incremental`（tsbuildinfo 入 gitignore）；`strict` 与 `noUncheckedIndexedAccess` 原有。module 保持 NodeNext（纯 Node ESM 库正解，preserve/bundler 为打包器场景不采纳）；74 用例全绿
+
 ## [0.3.1] - 2026-09-08
 
 - **x-monitor 人机共存容错（D27）**：用户浏览 x.com 非 home 页（推文详情/搜索/主页）时不再「刷新失败」报错刷屏：探测与收割只认时间线 tab（`x.com` 根或 `/home`），用户浏览期间静默等待（状态卡记「等待时间线 tab」，不写 degraded 不发错误事件），回到时间线即恢复；完全无 x.com tab 时仍后台自建 home（原行为不变）

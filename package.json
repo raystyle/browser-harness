@@ -35,8 +35,8 @@
     "prepack": "npm run build && npm run build:sdk"
   },
   "devDependencies": {
-    "typescript": "^5.9.0",
     "@types/node": "^24.0.0",
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "typescript": "^7.0.2"
   }
 }
