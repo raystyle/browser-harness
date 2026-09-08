@@ -149,8 +149,24 @@ bh 'await session.Page.navigate({url: "https://example.com"})'
 ```bash
 bh 'return await goto_url("https://example.com")'
 bh 'return await js("document.title")'
-echo 'return 1+1' | bh        # stdin 多语句片段
 ```
+
+`bh` 的代码片段有三种给法——参数、**管道/stdin**、heredoc：
+
+```bash
+bh 'return 1+1'                     # 1) 单行参数
+echo 'return 1+1' | bh              # 2) 管道（stdin；多语句用显式 return，末条表达式的值仅在单表达式时自动返回）
+cat snippet.js | bh                 #    整个文件流进来也可以
+bh < snippet.js                     #    重定向同理
+bh <<'EOF'                          # 3) heredoc 多语句：跨调用状态保持在 daemon 里
+const t = await list_tabs(false)
+globalThis.tid = t[0].targetId
+await session.use(globalThis.tid)
+return t[0].url
+EOF
+```
+
+session、活动 target、`globalThis.*` 变量跨调用保持——管道里定义的变量，下一条 `bh` 命令接着用。
 
 ## 能力矩阵
 
