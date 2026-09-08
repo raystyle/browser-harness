@@ -12,3 +12,15 @@
 ## 正文提取引擎（0.5.0 起）
 
 浏览器路径在已渲染页面内注入 Defuddle（Obsidian Web Clipper 同源库，自包含 IIFE，零 runtime 依赖）：干净正文 + title/author/published/description/content_html，GitHub/Wikipedia/Reddit/YouTube 有站点专用提取器；失败自动降级启发式不断供（stderr 一行诊断）。HTTP 优先与三条件升级不变。Medium 付费墙截断如实呈现，浏览器登录态下 `--browser` 可拿全文。
+
+## Defuddle 实测基线（2026-09-08，--browser 路径）
+
+| 站 | 结果 | 说明 |
+| --- | --- | --- |
+| medium.com 文章页 | 专用提取器命中，title/author/published 全出 | 文章型页面是 Defuddle 最强场景 |
+| github.com 仓库页 | generic 命中，正文 302 词 | 专用提取器未触发，generic 质量可用 |
+| en.wikipedia.org | defuddle 未命中，自动降级启发式（不断供） | SPA 水合时序或提取器 DOM 不匹配；兜底设计验证 |
+| reddit.com 版面页 | 同上，降级启发式 | 同上 |
+| youtube.com | 网络不可达，chrome-error 如实报（ERR_TIMED_OUT） | 与提取器无关，墙/断网如实语义 |
+
+结论：文章型页面优先吃 Defuddle 元数据红利；SPA 大站依赖兜底启发式；两者都拿不到时如实报错不伪装。

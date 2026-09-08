@@ -277,7 +277,7 @@ async function legacyPassthrough(argv: string[]): Promise<void> {
 
 // --- structured commands (Commander, D29) -------------------------------------
 
-const KNOWN_COMMANDS = new Set(['sessions', 'rmux', 'dashboard', 'doctor', 'skill', 'skills', 'record', 'video', 'run', 'upgrade']);
+const KNOWN_COMMANDS = new Set(['sessions', 'rmux', 'dashboard', 'doctor', 'skill', 'skills', 'record', 'video', 'run', 'upgrade', 'engine']);
 
 function pkgVersion(): string {
   return (JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { version: string }).version;
@@ -668,6 +668,108 @@ function buildProgram(): Command {
       }
       console.log(`ok：全部守护 ${admin.selfVersion()}，看板 ${dashOk ? '200' : '未跑（原本未跑）'}`);
       process.exit(EXIT.ok);
+    });
+
+
+  const engineCmd = program.command('engine')
+    .description('self-started headless Chrome engine: an ephemeral tool-grade browser (temp profile, killed on stop; never the user browser)')
+    .argument('[sub]', 'start | stop | status')
+    .option('--cookies <domain>', 'on start: clone this domain\'s cookies from the user\'s browser into the engine (login-state carry)')
+    .action(async (sub: string | undefined, cmd: Command) => {
+      const opts = engineCmd.opts<{ cookies?: string }>();
+      const engine = await import('./engine.js');
+      const cliJs = fileURLToPath(new URL('./cli.js', import.meta.url));
+      const s = sub ?? 'status';
+      if (s === 'start') {
+        const h = await engine.ensureEngine();
+        // Warm the dedicated engine daemon (BH_NAME=engine, pinned to the
+        // engine's WS through its env), detached like any other daemon.
+        const { spawn } = await import('node:child_process');
+        const child = spawn(process.execPath, [cliJs, '--name', 'engine', '--start'], {
+          detached: true, stdio: 'ignore', windowsHide: true,
+          env: { ...process.env, BH_NAME: 'engine', BH_CDP_WS: h.wsUrl },
+        });
+        child.unref();
+        // Wait for the engine daemon to be reachable before injecting cookies.
+        if (opts.cookies) {
+          const { readInstanceRecord } = await import('./paths.js');
+          for (let i = 0; i < 20; i++) {
+            await sleep(500);
+            try {
+              const rec = readInstanceRecord('engine');
+              if (rec) { const rr = await fetch(`http://127.0.0.1:${rec.port}/health`, { signal: AbortSignal.timeout(800) }); if (rr.ok) break; }
+            } catch { /* still warming */ }
+          }
+        }
+        // Login-state carry (D37): export the domain's cookies from the
+        // USER's browser (default daemon) and inject them into the engine.
+        let cookiesNote = '';
+        if (opts.cookies) {
+          try {
+            const { evalOn } = await import('./admin.js');
+            const { readInstanceRecord } = await import('./paths.js');
+            const drec = readInstanceRecord('default');
+            if (drec) {
+              const cookies = await evalOn<Array<Record<string, unknown>>>(drec.port,
+                `return await cdp('Storage.getCookies', { urls: ['https://${opts.cookies}/'] })`, 8000);
+              const list = Array.isArray(cookies) ? cookies : (cookies as { cookies?: Array<Record<string, unknown>> })?.cookies ?? [];
+              const usable = (list as Array<Record<string, unknown>>).map(c => ({
+                name: c['name'], value: c['value'], domain: c['domain'], path: c['path'] ?? '/',
+                secure: c['secure'] ?? true, httpOnly: c['httpOnly'] ?? false,
+                ...(c['expires'] ? { expires: c['expires'] } : {}),
+              }));
+              if (usable.length > 0) {
+                for (let i = 0; i < usable.length; i += 50) {
+                  await fetch(`http://127.0.0.1:${h.port}/json/version`, { signal: AbortSignal.timeout(1500) }).catch(() => null);
+                  break; // engine CDP is WS-only; injection goes through the engine daemon below
+                }
+                cookiesNote = `；已从用户浏览器取 ${usable.length} 条 ${opts.cookies} cookie（经 engine daemon 注入）`;
+                // stash for the engine daemon to inject on first use
+                const { writeFileSync, mkdirSync } = await import('node:fs');
+                const { runtimeDir } = await import('./paths.js');
+                mkdirSync(runtimeDir(), { recursive: true });
+                writeFileSync(await import('node:path').then(m => m.join(runtimeDir(), 'engine-cookies.json')), JSON.stringify(usable), 'utf8');
+                // push through the engine daemon (its session owns the engine)
+                const erec = readInstanceRecord('engine');
+                if (erec) {
+                  const { evalOn } = await import('./admin.js');
+                  await evalOn(erec.port,
+                    `return await cdp('Storage.setCookies', { cookies: ${JSON.stringify(usable).replace(/'/g, "'")} })`, 8000);
+                }
+              }
+            }
+          } catch { cookiesNote = `；cookie 克隆失败（用户浏览器未附着？bh doctor）`; }
+        }
+        process.stdout.write(`engine up: pid ${h.pid}, ws ${h.wsUrl}${cookiesNote}\n`);
+        process.stdout.write(`用法：BH_NAME=engine bh '<js>'（或 bh web-fetch <url> --engine）\n`);
+        process.exit(EXIT.ok);
+      }
+      if (s === 'stop') {
+        // Engine daemon first (it holds a WS to the engine), then the engine.
+        const { spawnSync } = await import('node:child_process');
+        spawnSync(process.execPath, [cliJs, '--name', 'engine', '--stop'], { stdio: 'ignore', windowsHide: true, timeout: 30_000 });
+        const r = await engine.stopEngine();
+        console.log(`engine stop: ${r.note}`);
+        process.exit(EXIT.ok);
+      }
+      if (s === 'status') {
+        const st = await engine.engineStatus();
+        const h = await (async () => {
+          try {
+            const { health } = await import('./admin.js');
+            const { readInstanceRecord } = await import('./paths.js');
+            const rec = readInstanceRecord('engine');
+            return rec ? await health(rec.port, 800) : null;
+          } catch { return null; }
+        })();
+        console.log(JSON.stringify({
+          engine: st.alive ? (st.cdp ? 'running' : 'up-no-cdp-probe') : (st.pid ? 'dead' : 'not started'),
+          pid: st.pid || null, port: st.port || null, daemon: h?.ok === true ? h.version : null,
+        }, null, 1));
+        process.exit(EXIT.ok);
+      }
+      process.stderr.write('bh: usage: bh engine start [--cookies <domain>] | stop | status\n');
+      process.exit(EXIT.usage);
     });
 
   return program;

@@ -92,6 +92,7 @@ export async function main(argv = [], ctx) {
       metrics: [{ label: '检测节奏', value: '5 秒探测 · 触发后 10 秒内随机抓取' }],
     });
     await rmux.ensureSession(WORKER_SESSION, {
+      cwd: bhHome(),
       command: workerCommand(),
       readyTimeout: 20,
     });
@@ -102,6 +103,7 @@ export async function main(argv = [], ctx) {
       const supervisor = path.join(path.dirname(fileURLToPath(import.meta.url)), 'supervisor-core.mjs');
       if (existsSync(supervisor)) {
         await rmux.ensureSession('supervisor-core', {
+          cwd: bhHome(),
           command: `"${process.execPath}" "${supervisor}"`,
           readyTimeout: 10,
         });

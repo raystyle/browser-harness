@@ -31,3 +31,9 @@
 
 - lightpanda-io/browser 官方 README（raw.githubusercontent.com，2026-09-08 取）
 - S002 赛道全景（Kinbrowser 分级引擎同构旁证）
+
+## 增补：自起 headless Chrome PoC（2026-09-08，用户定向）
+
+- 实证链：临时 profile（%TEMP%h-engine-poc）+ `--headless=new --remote-debugging-port=0` 起引擎 -> 读 DevToolsActivePort -> `BH_NAME=engine BH_CDP_WS=<ws>` 连接 -> goto/snapshot_interactives 全链工作（马标记专属 tab 纪律在 headless 内同样生效）-> 按命令行特征匹配强杀 + 清临时目录 + engine daemon 停 -> 用户浏览器附着无扰 [实证: 2026-09-08 本机 PoC]
+- 结论：自起 headless Chrome 是 Lightpanda 中层的**超集方案**（真 Chromium 全 CDP 域、零新依赖、D11 纪律与 D35 引用全兼容）；Lightpanda 仅在内存敏感批量场景仍有价值（待办降级为可选）[实证]
+- 正式集成形态（D37 候选）：web-fetch 引擎分级 HTTP -> 自起 headless（临时 profile 用完即杀）-> 附着用户浏览器；生命周期铁律：临时 user-data-dir、退出必杀、绝不碰用户 profile

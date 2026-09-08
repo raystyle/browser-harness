@@ -68,6 +68,13 @@ function printableKey(char: string): [string, number, boolean] | null {
 
 // ---------------------------------------------------------------------------
 
+/** Parse '@<version>:e<index>'; throws a controlled BAD_REF on malformed input (D35). */
+export function parseRef(ref: string): { version: string; index: number } {
+  const m = /^@([a-z0-9]+):e(\d+)$/.exec(String(ref ?? ''));
+  if (!m) throw new Error(`BAD_REF: ${JSON.stringify(ref)}（形如 @<version>:e<index>，来自 snapshot_interactives()）`);
+  return { version: m[1] ?? '', index: Number(m[2]) };
+}
+
 export function createHelpers(host: Host, hooks: { onAction?: (name: string, args: unknown[], ms: number, error?: unknown) => void } = {}) {
   let selectAllModifier: number | null = null;
 
@@ -656,6 +663,114 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
     return false;
   }
 
+  // --- versioned element refs (D35): smallest observable interaction surface.
+  // Snapshot yields {version, items:[{ref, role, name, tag, box}]}; act-by-ref
+  // RE-RESOLVES the element through the SAME collector and self-verifies via
+  // elementFromPoint — a stale ref (page changed since the snapshot) fails
+  // with STALE_REF instead of blindly clicking wherever the box used to be.
+
+  /** The ONE collector shared by snapshot and resolution (order must match). */
+  const REF_COLLECTOR = `(() => {
+    const sels = 'button, a[href], input, select, textarea, [role="button"], [role="link"], [role="textbox"], [role="checkbox"], [role="tab"], [onclick]';
+    const vis = [...document.querySelectorAll(sels)].filter(el => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return false;
+      const cs = getComputedStyle(el);
+      return cs.visibility !== 'hidden' && cs.display !== 'none' && cs.pointerEvents !== 'none';
+    });
+    const roleOf = el => el.getAttribute('role') || (el.tagName === 'A' ? 'link' : el.tagName === 'BUTTON' ? 'button'
+      : el.tagName === 'SELECT' ? 'combobox'
+      : (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit)$/.test(el.type))) ? 'textbox'
+      : el.tagName.toLowerCase());
+    const nameOf = el => (el.getAttribute('aria-label')
+      || (el.labels && el.labels[0] ? el.labels[0].innerText : '')
+      || el.innerText || el.value || el.placeholder || el.title || '').trim().slice(0, 80);
+    return JSON.stringify(vis.map((el, i) => {
+      const r = el.getBoundingClientRect();
+      return { i, role: roleOf(el), name: nameOf(el), tag: el.tagName.toLowerCase(),
+        cx: Math.round(r.x + r.width / 2), cy: Math.round(r.y + r.height / 2),
+        w: Math.round(r.width), h: Math.round(r.height) };
+    }));
+  })()`;
+
+  async function snapshot_interactives(maxItems = 50): Promise<Record<string, unknown>> {
+    return withTrace('snapshot_interactives', [maxItems], async () => {
+      const version = Date.now().toString(36);
+      let all: Array<Record<string, unknown>> = [];
+      try { all = JSON.parse(String(await js(REF_COLLECTOR)) ?? '[]'); } catch { /* page mid-navigation */ }
+      const items = all.slice(0, maxItems).map(it => ({
+        ref: `@${version}:e${it['i']}`,
+        role: String(it['role'] ?? ''), name: String(it['name'] ?? ''), tag: String(it['tag'] ?? ''),
+        box: { x: Number(it['cx']), y: Number(it['cy']), w: Number(it['w']), h: Number(it['h']) },
+      }));
+      return {
+        _v: '1.0.0', version, total: all.length, items,
+        ...(all.length > maxItems ? { truncated: true, note: `共 ${all.length} 个可交互元素，仅前 ${maxItems} 个给 ref；可滚动后重新 snapshot` } : {}),
+      };
+    });
+  }
+
+  /** Resolve one ref NOW through the shared collector, self-verified. */
+  async function resolveRef(ref: string): Promise<{ cx: number; cy: number; role: string; name: string; selector: string }> {
+    const { index } = parseRef(ref);
+    const resolveExpr = `(() => { const all = JSON.parse(${REF_COLLECTOR}); const it = all[${index}];
+      if (!it) return JSON.stringify({stale: true});
+      const sels = 'button, a[href], input, select, textarea, [role="button"], [role="link"], [role="textbox"], [role="checkbox"], [role="tab"], [onclick]';
+      const vis = [...document.querySelectorAll(sels)].filter(el => {
+        const r = el.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) return false;
+        const cs = getComputedStyle(el);
+        return cs.visibility !== 'hidden' && cs.display !== 'none' && cs.pointerEvents !== 'none';
+      });
+      const el = vis[${index}];
+      // A combobox/textbox ROLE often sits on a WRAPPER div (bing's search
+      // box); the real field is its inner <input>. Fill must target the field.
+      const field = el && (el.matches('input,textarea,select') ? el : el.querySelector('input,textarea,select'));
+      const target = field || el;
+      const hit = document.elementFromPoint(it.cx, it.cy);
+      const verified = hit === el || hit === target || (hit && (el.contains(hit) || (target && target.contains(hit))));
+      let selector = '';
+      if (target.id && /^[A-Za-z][\\w-]*$/.test(target.id)) selector = '#' + target.id;
+      else { // nth-of-type path, up to 4 levels
+        const parts = []; let n = target;
+        for (let d = 0; d < 4 && n && n !== document.body; d++) {
+          const t = n.tagName.toLowerCase();
+          let k = 1, sib = n;
+          while ((sib = sib.previousElementSibling)) if (sib.tagName === n.tagName) k++;
+          parts.unshift(t + ':nth-of-type(' + k + ')'); n = n.parentElement;
+        }
+        selector = 'body>' + parts.join('>');
+      }
+      return JSON.stringify({ stale: !verified, cx: it.cx, cy: it.cy, role: it.role, name: it.name, selector });
+    })()`;
+    const raw = await js(resolveExpr);
+    let r: Record<string, unknown>;
+    try { r = JSON.parse(String(raw)); } catch { r = { stale: true }; }
+    if (r['stale'] === true) {
+      throw new Error(`STALE_REF: ${ref} 页面已变化（元素消失/位移/被遮挡），重新 snapshot_interactives() 取新 ref`);
+    }
+    return { cx: Number(r['cx']), cy: Number(r['cy']), role: String(r['role'] ?? ''), name: String(r['name'] ?? ''), selector: String(r['selector'] ?? '') };
+  }
+
+  async function click_ref(ref: string): Promise<Record<string, unknown>> {
+    return withTrace('click_ref', [ref], async () => {
+      const { cx, cy, role, name } = await resolveRef(ref);
+      await click_at_xy(cx, cy);
+      return { clicked: ref, role, name, at: { x: cx, y: cy } };
+    });
+  }
+
+  async function fill_ref(ref: string, text: string): Promise<Record<string, unknown>> {
+    return withTrace('fill_ref', [ref, String(text).slice(0, 32)], async () => {
+      const { selector, role, name } = await resolveRef(ref);
+      if (!/textbox|combobox|searchbox|input|textarea|select/.test(role)) {
+        throw new Error(`BAD_REF: ${ref} 是 ${role}（${name}），fill_ref 需要 textbox/combobox/searchbox/input/textarea/select`);
+      }
+      await fill_input(selector, text);
+      return { filled: ref, role, name, chars: String(text).length };
+    });
+  }
+
   return {
     cdp, drain_events, js, http_get, wait, run_app,
     goto_url, page_info, _adjudicate_lost_navigation,
@@ -663,6 +778,7 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
     capture_screenshot,
     list_tabs, current_tab, activate_tab, switch_tab, new_tab, close_tab, ensure_real_tab, iframe_target,
     wait_for_load, wait_for_render, wait_for_element, wait_for_network_idle,
+    snapshot_interactives, click_ref, fill_ref,
   };
 }
 

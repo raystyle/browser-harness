@@ -16,7 +16,7 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { envNumber } from './env.js';
 import { fileURLToPath } from 'node:url';
@@ -71,6 +71,9 @@ function pkgVersion(): string {
 }
 const VERSION = pkgVersion();
 const startedAt = Date.now();
+/** Dist mtime at daemon start — same-version hot-fix reinstalls become
+ *  visible to drift detection (version alone goes blind, hit twice on 09-08). */
+const BUILD_TIME = (() => { try { return statSync(new URL('./cli.js', import.meta.url)).mtimeMs; } catch { return 0; } })();
 
 // One snippet at a time. A timed-out eval is NOT cancelled — it keeps running
 // on this daemon — so the slot stays held until the snippet settles; a retry
@@ -150,6 +153,7 @@ const server = createServer(async (req, res) => {
         uptime: Math.floor((Date.now() - startedAt) / 1000),
         connected: session.isConnected(),
         sessionId: session.getActiveSession() ?? null,
+        buildTime: BUILD_TIME,
         // Multi-instance identity: clients refuse a mismatched name (WSL2
         // mirrored networking can otherwise cross the stacks).
         name: INSTANCE,

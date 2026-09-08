@@ -164,7 +164,7 @@ export async function main(argv = [], ctx) {
           actions.push(e.name);
           if (alive) await rmux.killSession(e.session).catch(() => {});
           await sleep(1);
-          await rmux.ensureSession(e.session, { command: e.command(), readyTimeout: 15 }).catch(() => {});
+          await rmux.ensureSession(e.session, { cwd: bhHome(), command: e.command(), readyTimeout: 15 }).catch(() => {});
           lastSpawn.set(e.name, Date.now());
           state[e.name] = '已重启';
           logLine(`重启 ${e.name}（session:${alive ? '失' : '缺'}, heartbeat:${age === null ? '缺' : Math.round(age) + 's'}）`);

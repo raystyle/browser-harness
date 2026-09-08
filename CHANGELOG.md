@@ -2,6 +2,13 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.6.0] - 2026-09-08
+
+- **封版前增补（A+B+C+D37 PoC）**：rmux 会话 cwd 统一落 BH_HOME（四处 ensureSession 补 cwd，安装态进程不再挂仓库目录）；`/health` 增 `buildTime`（dist mtime），漂移检测比对版本+构建戳，同版本号热修重装不再骗过 upgrade（当天踩中两次）；Defuddle 四站实测基线入 fetch-analyze 配方（medium 专用提取器最优、GitHub generic 可用、Wikipedia/Reddit 降级兜底、断网如实报）；D37 引擎 PoC 实证：自起 headless Chrome（临时 profile + port 0）经 `BH_CDP_WS` 连接，D11 全部纪律与 D35 引用机制在 headless 上完整工作，用完即杀用户面无扰，自起 headless 是 Lightpanda 中层的超集方案（S003 增补），正式集成待 D37 立项
+- **版本化元素引用（D35，S002 吸收 + PinchTab a11y 观测面合并）**：新增 `snapshot_interactives()` / `click_ref(ref)` / `fill_ref(ref, text)` 语义助手。snapshot 出**最小观测面**：可见可交互元素（button/a/input/select/textarea/[role]）的语义清单 `{version, items:[{ref, role, name, tag, box}]}`（a11y 风格 role/name，上限 50 + total 如实，替代整页 DOM 喂模型）；动作时 ref 经**同一收集器重解析 + elementFromPoint 自证**，元素消失/位移/被遮挡如实报 `STALE_REF`（防 agent 记旧状态盲点），畸形 ref 报 `BAD_REF`；click 复用 click_at_xy 坐标真点击、fill 复用 fill_input（回读严格相等 + activate 重试）。附 element-refs 配方（interaction-skills 第 17 篇）与 SKILL 路由
+- 上游同步核查（js 仓 09-04 以来 9 条合并）：video#757 结构免疫（ffmpeg 路线）、auth#755 回流为 cookie-io 受控 JSON 解析、raw-cdp#764 文档不冲突（TS 形态不同）；py 主仓停 09-04 基线
+- CI 三平台矩阵今日全部 push 连续 success
+
 ## [0.5.2] - 2026-09-08
 
 - **技能资产激活（D36）**：interaction-skills/domain-skills 长期低触发的三重根因修复。分发面补全：`bh skill sync` 现在把 `primitives/` 与 `domain-skills/`（94 站，1.6MB）一并铺进 ~/.claude 与 ~/.codex 的技能目录，agent 技能树自包含；domain-skills 提示**默认开启**（`BH_DOMAIN_SKILLS=0` 显式关），`goto_url()` 返回自动附 `domain_skills` 文件清单与 `bh skill site <段>` 提示；新原语 `bh skill sites`（列 94 站）与 `bh skill site <段>`（一条命令读站点知识全文，NOT_FOUND 退码 3）；SKILL.md 加「动手前硬性两步」路由（站点任务先读站点知识、冷门交互先查配方）

@@ -8,7 +8,7 @@
  */
 
 import { spawn, spawnSync } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readInstanceRecord, instanceName, derivedPort, logFile, homeDir, runtimeDir, DEFAULT_NAME, workspaceDir, dataDir } from './paths.js';
@@ -20,7 +20,7 @@ const DIST_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 export type HealthInfo = {
   ok: boolean; uptime?: number; connected?: boolean; sessionId?: string | null;
-  name?: string; pid?: number; version?: string;
+  name?: string; pid?: number; version?: string; buildTime?: number;
 };
 
 /** GET /health on a REPL instance. */
@@ -386,6 +386,7 @@ async function ensureCompanions(): Promise<void> {
         process.stderr.write('bh: companion page-detect has no watch subcommand — run `bh skill sync`\n');
       } else if (!companionStopped('page-detect')) {
         await rmux.ensureSession('page-detect', {
+          cwd: homeDir(),
           command: `"${process.execPath}" "${path.join(DIST_DIR, 'cli.js')}" --name page-detect page-detect watch --watch-loop --interval ${companionInterval('page-detect')}`,
           readyTimeout: 10,
         });
@@ -395,6 +396,7 @@ async function ensureCompanions(): Promise<void> {
         process.stderr.write('bh: companion supervisor-core missing — run `bh skill sync`\n');
       } else {
         await rmux.ensureSession('supervisor-core', {
+          cwd: homeDir(),
           command: `"${process.execPath}" "${supervisor}"`,
           readyTimeout: 10,
         });
@@ -523,21 +525,34 @@ export function selfVersion(): string {
 export type DaemonDrift = { name: string; port: number; version: string | null };
 
 /**
- * Alive daemons whose /health version differs from ours. A missing version
- * field means pre-0.4.0 health output — the oldest still rolls. Down daemons
- * are not drift (nothing to roll; they come up on demand with fresh code).
+ * Alive daemons whose /health version or BUILD differs from ours. A missing
+ * version field means pre-0.4.0 health output — the oldest still rolls; a
+ * matching version with a DIFFERENT buildTime is a same-version hot-fix
+ * reinstall (hit twice on 2026-09-08) and rolls too. Down daemons are not
+ * drift (nothing to roll; they come up on demand with fresh code).
  */
 export async function daemonVersionDrift(): Promise<DaemonDrift[]> {
   const self = selfVersion();
+  const selfBuild = selfBuildTime();
   const found: DaemonDrift[] = [];
   await Promise.all(instanceNames().map(async (name) => {
     const rec = readInstanceRecord(name);
     if (!rec) return;
     const h = await health(rec.port, 600);
     if (!h?.ok) return;
-    if ((h.version ?? null) !== self) found.push({ name, port: rec.port, version: h.version ?? null });
+    const staleVersion = (h.version ?? null) !== self;
+    // Missing buildTime on a SAME-version daemon = the old build of this very
+    // version (hot-fix reinstall) — that rolls too. Pre-0.4.0 daemons have no
+    // version at all and are already caught by staleVersion.
+    const staleBuild = !staleVersion && h.buildTime !== selfBuild;
+    if (staleVersion || staleBuild) found.push({ name, port: rec.port, version: h.version ?? null });
   }));
   return found;
+}
+
+/** Our dist's mtime — the build stamp health reports as buildTime. */
+export function selfBuildTime(): number {
+  try { return statSync(path.join(DIST_DIR, 'cli.js')).mtimeMs; } catch { return 0; }
 }
 
 export type UpgradeState = {

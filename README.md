@@ -48,6 +48,7 @@ bh 'return await snapshot_interactives()'      # 页面可点/可填元素清单
 echo 'return 1+1' | bh                         # 管道；heredoc 多语句也行
 bh web-fetch https://medium.com/some-article   # 抓正文（自动过反爬）
 bh x-intel start                               # 后台监控你的 X 时间线
+bh engine start                                # 自起无头 Chrome 引擎（临时、隔离、用完即杀）
 ```
 
 agent 只需一句提示即可接入（技能自动同步到 Claude Code 与 Codex）：

@@ -35,7 +35,7 @@
 | 数据 | `protocol/` | browser_protocol.json + js_protocol.json（上游协议快照） |
 | 技能 | `skill/SKILL.md` | agent 技能入口（装到 ~/.claude/skills/browser/） |
 | 技能 | `skill/primitives/` | L1 原语契约 5 篇（attach/search/fetch-analyze/detect/observability） |
-| 技能 | `skill/interaction-skills/` | 16 篇纯 CDP 交互配方（一文件一机制） |
+| 技能 | `skill/interaction-skills/` | 17 篇纯 CDP 交互配方（一文件一机制） |
 | 资产 | `assets/` | domain-skills 94 站知识库 + apps 八应用（web-fetch/google-search/bing-search/cookie-io/page-detect/medium-search/x-intel 全家桶/super-ocr）+ sdk |
 
 ## 三、方案归档（docs/proven/）

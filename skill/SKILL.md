@@ -15,7 +15,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 **动手前硬性两步（先查再写，别重新发明既存知识）**：
 
 1. **站点任务先读站点知识**：目标站若在 94 站内，先 `bh skill site <段>`（如 `bh skill site github`）拿选择器与结构；`bh skill sites` 列全部。`goto_url()` 的返回也会自动提示 `domain_skills`（默认开启，`BH_DOMAIN_SKILLS=0` 关）
-2. **冷门交互先查配方**：下拉/shadow-DOM/拖拽/iframe/dialog/downloads 等机制动手前，先读 `interaction-skills/<机制>.md`（同目录 16 篇，一文件一机制）
+2. **冷门交互先查配方**：下拉/shadow-DOM/拖拽/iframe/dialog/downloads 等机制动手前，先读 `interaction-skills/<机制>.md`（同目录 17 篇，一文件一机制）
 
 | 意图 | 入口 | 细节下钻 |
 | --- | --- | --- |
@@ -28,6 +28,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | 迁移登录态 | `bh cookie-io export\|import` | 应用层 |
 | 监控 X / 查收割库 | `bh x-intel start\|stop` / `x-intel search\|harvest` | 应用层 |
 | 冷门交互（下拉/shadow-DOM/拖拽…） | 直接写 CDP，先查配方 | `interaction-skills/<机制>.md` |
+| 页面里有哪些可点/可填 | `snapshot_interactives()` 出语义清单（role/name/box），`click_ref`/`fill_ref` 按 ref 动作 | `interaction-skills/element-refs.md` |
 | 诊断环境 | `bh doctor [--json]` | `primitives/observability.md` |
 | 录制与视频 | `bh record …` / `bh video init/export` | 本文「录制与视频」节 |
 
@@ -40,7 +41,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | L0 命令速查 | 每次用 | 本文下方 CLI 表 |
 | L1 原语契约 | 用到该原语时 | `primitives/attach.md` `search.md` `fetch-analyze.md` `detect.md` `observability.md` |
 | L2 CDP 机制 | 写协议调用遇到冷门交互时 | `interaction-skills/`（一文件一机制，17 篇） |
-| L3 站点知识 | 目标站在索引中时 | `BH_DOMAIN_SKILLS=1` 后 `goto_url()` 返回清单 -> **通读该站全部 .md 再动手** |
+| L3 站点知识 | 目标站在索引中时 | `goto_url()` 自动返回清单（默认开启）-> `bh skill site <段>` 通读再动手 |
 | L4 长跑应用 | 用 x-intel / 搜索 / 抓取 / 诊断 / cookie 迁移时 | 本文「应用」节 + workspace/apps/ |
 
 ## CLI 命令（L0 速查）
@@ -53,6 +54,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | `bh sessions` | 实例清单 + 窗口分组 tab 表 + 附着策略 |
 | `bh dashboard [start\|stop\|status]` | 只读看板 127.0.0.1:9870（SSE 推送；墙类弹 Chrome 系统通知 D16/D18；独立应用卡片区 D17：描述/运行流水/日志行/库存 + 折叠拖拽；部署信息栏默认隐藏；页面版本握手自动重载） |
 | `bh rmux` | rmux 监督面：会话/pane 树 |
+| `bh engine start [--cookies <domain>] \| stop \| status` | 自起无头 Chrome 引擎：临时 profile + 专属 daemon（BH_NAME=engine，BH_CDP_WS 钉引擎）；`--cookies` 从用户浏览器克隆该域登录态；`BH_NAME=engine bh '<js>'` 操作引擎；`bh web-fetch <url> --engine` 走引擎抓取；用完即杀绝不碰用户 profile |
 | `bh --new-tab '<js>'` | 显式新开 about:blank 附着执行 |
 | `bh run <name>` / `bh <name>` | 显式/路由调用应用 |
 | `bh skill status\|sync` | 技能三线同步 + workspace 铺装 |
@@ -106,7 +108,7 @@ aa, agentlist, alaska, amazon, archive-org, articulate-rise, arxiv, arxiv-bulk, 
 
 ## 语义层速查
 
-`goto_url` `js` `click_at_xy` `fill_input` `press_key` `type_text` `scroll` `upload_file` `dispatch_key` / `list_tabs` `current_tab` `switch_tab` `new_tab` `close_tab` `ensure_real_tab` `iframe_target` / `wait_for_element` `wait_for_render` `wait_for_load` `wait_for_network_idle` / `capture_screenshot` `http_get` `run_app`。等待判官优先级：element > render > load > network idle。
+`goto_url` `js` `click_at_xy` `fill_input` `press_key` `type_text` `scroll` `upload_file` `dispatch_key` / `snapshot_interactives` `click_ref` `fill_ref`（版本化元素引用，D35） / `list_tabs` `current_tab` `switch_tab` `new_tab` `close_tab` `ensure_real_tab` `iframe_target` / `wait_for_element` `wait_for_render` `wait_for_load` `wait_for_network_idle` / `capture_screenshot` `http_get` `run_app`。等待判官优先级：element > render > load > network idle。
 
 ## 协议层速查
 
