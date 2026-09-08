@@ -95,6 +95,7 @@
 
 | 任务项 | 进度 | 说明 | 出处 |
 | --- | --- | --- | --- |
+| x-intel 探测 eval 显式短超时 | 备查 | 瞬时页面挂起致单飞锁 429 约 21 秒自愈（12:23 实测，自然结算路径；D31 僵尸清算与 watch 自愈待命未触发）。频率升高（分钟级一次）再立项：探测 eval 带 ?timeout=20 级显式超时把瞬失窗口压到秒级 | 2026-09-08 观察 |
 | npm 发布（0.1.0） | 不做 | 2026-09-07 用户裁定不做；本地 `npm pack` + 全局 tgz 安装验收即可，不走 registry 发布 | ROADMAP |
 | bing-search 按 G002 升级 | 已完成 | D22：__bs + 两步契约 bs_search；实搜 5 条 title 非空 [实证: 2026-09-07] | G002 / PRD D22 |
 | mp4 视频管线验证 | 已完成 | 2026-09-07：User PATH 探测 + ffmpeg 9 fps_mode；export mp4 与 contact sheet 冒烟通过 [实证: 1655B] | ROADMAP + M005 |
