@@ -3,7 +3,7 @@
 从 LLM 到 Chrome 的完整操控平台，两层 API 一条守护进程：
 
 1. **协议层**："协议即 API"，CDP 全部 56 域 652 方法带类型直调，无封装遮蔽（源自 [browser-use/browser-harness-js](https://github.com/browser-use/browser-harness-js) 的忠实移植）
-2. **语义层**：[browser-harness-py](https://github.com/raystyle/browser-harness-py)（Python 版）同名 snake_case 助手，tab 纪律、等待判官、登录墙策略、自愈；97 站 domain-skills 知识库即插即用
+2. **语义层**：[browser-harness-py](https://github.com/raystyle/browser-harness-py)（Python 版）同名 snake_case 助手，tab 纪律、等待判官、登录墙策略、自愈；94 站 domain-skills 知识库即插即用
 
 **零运行时依赖**（Node ≥22 内置 WebSocket/fetch/sqlite）；长驻 daemon 持久会话；**附着用户自己打开的浏览器、人机共存**（永不 spawn，只在专属 tab 工作，Chrome 144+ 官方 auto-connect 通道）；插件应用生态（web-fetch / 搜索 / cookie-io / page-detect 页面诊断 / super-ocr 验证码图识别 / x-intel X 监控全家桶）；只读网页看板；每动作一帧录制 + 视频合成。
 
@@ -81,8 +81,8 @@ bh --version           # 验证：应输出 package.json 里的版本号
 从 [Releases](https://github.com/raystyle/browser-harness/releases) 下载 `browser-harness-ts-<版本>.tgz` 附件后：
 
 ```bash
-npm install -g ./browser-harness-ts-0.2.1.tgz
-bh --version   # -> 0.2.1
+npm install -g ./browser-harness-ts-0.3.0.tgz
+bh --version   # -> 0.3.0
 ```
 
 ### 方式三：开发模式（源码直跑）
@@ -155,7 +155,7 @@ bh skill sync
 或者把下面这段直接粘给你的 agent，它会装好 CLI 并执行第一个任务：
 
 ```
-Run: 从 https://github.com/raystyle/browser-harness/releases 下载 browser-harness-ts-0.2.1.tgz，`npm install -g ./browser-harness-ts-0.2.1.tgz`，确认 `bh --status` 可用，然后用
+Run: 从 https://github.com/raystyle/browser-harness/releases 下载 browser-harness-ts-0.3.0.tgz，`npm install -g ./browser-harness-ts-0.3.0.tgz`，确认 `bh --status` 可用，然后用
 browser 技能驱动我的浏览器：查看我打开的所有标签页，按主题分组，
 并截取最有意思的一个的截图。
 ```

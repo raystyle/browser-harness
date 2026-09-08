@@ -2,7 +2,7 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
-## [Unreleased]
+## [0.3.0] - 2026-09-08
 
 - **review 收尾（bug 6 与建议 7-11）**：看板 URL 判定改 URL 解析精确匹配 host+port（`127.0.0.1:98700` 这类前缀同形端口不再被误判为控制面），page-detect/super-ocr 复用 dist host.ts 共享判定，附 host.test.ts；`fill_input` 表单控件回读改严格相等（预含针值不再误判成功而跳过重试）；`setDiscoverTargets` 失败不再闩死本连接的 target 发现；super-ocr `NOT_FOUND` 退码 3 对齐 G002 命令层契约；cdp() JSDoc 归位、看板 1s 推送与快照形状注释对齐；README 重整：内置应用一览表、环境变量配置表、修落单代码围栏与「没有 helpers 文件」过时表述
 - **第三方 review 修复（6f1bf28..ca23f93 范围，5 bug）**：page-detect 白屏持久化告警从未触发（streak 达标时边沿条件必然不成立）改为阈值跨越告警一次/回合（M017）；`bh x-intel start` 冷启动补拉 supervisor-core（selfManaged 应用此前无人守护 worker）；`/eval` 单飞互斥，超时未结算的 snippet 期间新求值 429 拒绝，不再与上次并发；Target 脱离追踪改用 sessionId（params.targetId 系可选废弃字段，缺省时附着状态滞留）附回归测试（M018）；page-detect 巡检 interval 持久化到 status 文件，ensureCompanions 与 supervisor-core 重拉沿用，`watch --interval` 请求不同节奏时杀会话重拉
