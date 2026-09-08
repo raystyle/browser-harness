@@ -8,3 +8,7 @@
 ## 命令
 
 - `bh web-fetch <url> [--browser|--current]`
+
+## 正文提取引擎（0.5.0 起）
+
+浏览器路径在已渲染页面内注入 Defuddle（Obsidian Web Clipper 同源库，自包含 IIFE，零 runtime 依赖）：干净正文 + title/author/published/description/content_html，GitHub/Wikipedia/Reddit/YouTube 有站点专用提取器；失败自动降级启发式不断供（stderr 一行诊断）。HTTP 优先与三条件升级不变。Medium 付费墙截断如实呈现，浏览器登录态下 `--browser` 可拿全文。

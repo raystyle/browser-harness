@@ -2,6 +2,10 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.5.0] - 2026-09-08
+
+- **web-fetch 正文提取升级 Defuddle（D33）**：浏览器路径改为在已渲染页面内注入 Defuddle（kepano/Obsidian Web Clipper 同源库）解析：干净正文 + 元数据（title/author/published/description/content_html/markdown）+ 站点专用提取器（GitHub/Wikipedia/Reddit/YouTube 等）；defuddle 为构建期 devDependency，esbuild 打成自包含 IIFE（`assets/sdk/extract.min.js`），**运行时依赖白名单不变**；失败降级原启发式不断供（stderr 一行诊断）；HTTP 优先与三条件升级不变；输出形状向后兼容（新字段可选追加）。顺带消除 medium.com 等大页「老是 500」的根因：旧路径回传整页 outerHTML（几 MB）触发 CDP 大返回冻结（M102 同源），新路径只回传 KB 级干净正文；付费墙截断如实呈现（登录态经附着浏览器可用）
+
 ## [0.4.5] - 2026-09-08
 
 - **apps 层类型护栏（D32）**：新增 `tsconfig.apps.json`（allowJs + checkJs + noEmit，strict 继承、隐式 any 渐进后置）纳管 assets/apps 全部 .mjs 的类型检查，`npm test` 前置执行（`typecheck:apps`）；分发模型零变化（apps 仍是纯 .mjs 原样铺装）。清 41 处真错误（空值/属性访问/参数匹配）：null 初始化容器 JSDoc cast、catch 变量 instanceof 收窄、`process.argv[1]` 兜底、spawn 返回 cast；顺带清掉 worker `setTimeout(r*1||r)` 的 NaN 把戏（行为等价改直写）。两步契约模板（bing/google/medium/cookie-io）入口与工具函数补 JSDoc 形参类型

@@ -4,6 +4,9 @@
  * path. Blocked ≠ empty results — a wall is a state, not an empty result set.
  */
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Helpers } from './helpers.js';
 import { isDashboardUrl } from './host.js';
 
@@ -26,6 +29,35 @@ const SITE_SELECTORS: Record<string, string> = {
 
 function stderr(msg: string): void {
   process.stderr.write(`${msg}\n`);
+}
+
+/** D33: the defuddle IIFE bundle shipped in the package (lazy, best-effort). */
+let extractSdkCache: string | null | undefined;
+function extractSdkSource(): string | null {
+  if (extractSdkCache !== undefined) return extractSdkCache;
+  try {
+    extractSdkCache = readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'sdk', 'extract.min.js'),
+      'utf8');
+  } catch {
+    extractSdkCache = null; // package layout drift — heuristic path still works
+  }
+  return extractSdkCache;
+}
+
+/** HTML -> flowing text (the fallback extractor's strip, reusable). */
+function stripHtmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function fallbackWordCount(html: string): number {
+  return stripHtmlToText(html).split(/\s+/).filter(Boolean).length;
 }
 
 export function createBrowserHelpers(h: Helpers) {
@@ -198,8 +230,36 @@ export function createBrowserHelpers(h: Helpers) {
   }
 
   /** Extract the current page's content (attached tab). */
-  async function extract_page_content(): Promise<{ title: string; url: string; text: string; word_count: number; engine: string }> {
+  async function extract_page_content(): Promise<Record<string, string | number>> {
     const info = await h.page_info();
+    // D33: Defuddle first — it parses the RENDERED document (clean content +
+    // metadata + site-specific extractors: GitHub/Wikipedia/Reddit/YouTube…).
+    // One-shot evaluation: the self-contained IIFE bundle is prepended to the
+    // call, nothing resident. Falls back to the heuristic — never breaks.
+    try {
+      const bundle = extractSdkSource();
+      if (bundle) {
+        const r = (await h.js(`(() => { ${bundle}\n return __bh_extract(); })()`)) as Record<string, unknown>;
+        if (r && r['_ok'] === true) {
+          return {
+            title: String(r['title'] ?? ''),
+            url: String(info.url ?? ''),
+            text: String(r['markdown'] || stripHtmlToText(String(r['content_html'] ?? ''))),
+            word_count: Number(r['word_count'] ?? 0) || fallbackWordCount(String(r['content_html'] ?? '')),
+            author: String(r['author'] ?? ''),
+            published: String(r['published'] ?? ''),
+            description: String(r['description'] ?? ''),
+            content_html: String(r['content_html'] ?? ''),
+            extractor: String(r['extractor'] ?? 'generic'),
+            engine: 'defuddle',
+          };
+        }
+      }
+    } catch (e) {
+      // Observable, not silent: knowing WHY we fell back matters when tuning
+      // (usually a still-hydrating tab on a fresh new_tab, occasionally a wall).
+      stderr(`web-fetch: defuddle 未命中（${e instanceof Error ? e.message : String(e)}），降级启发式`);
+    }
     const html = await h.js('document.documentElement.outerHTML');
     const r = fallbackExtract(String(html ?? ''), String(info.url ?? ''));
     return { ...r, url: String(info.url ?? ''), engine: 'browser' };
@@ -209,7 +269,7 @@ export function createBrowserHelpers(h: Helpers) {
    * Fetch a URL's content: plain HTTP first; escalate to a real browser tab
    * when the body is empty, wall-worded, or too thin (<20 words).
    */
-  async function extract_url_content(url: string, use_browser = false): Promise<{ title: string; url: string; text: string; word_count: number; engine: string }> {
+  async function extract_url_content(url: string, use_browser = false): Promise<Record<string, string | number>> {
     if (!use_browser) {
       try {
         const html = await h.http_get(url);
@@ -221,7 +281,7 @@ export function createBrowserHelpers(h: Helpers) {
     try {
       await h.wait_for_load(30);
       const out = await extract_page_content();
-      return { ...out, engine: use_browser ? 'browser' : `${out.engine}+browser-retry` };
+      return { ...out, engine: use_browser ? 'browser' : `${out['engine']}+browser-retry` };
     } finally {
       await h.close_tab(tid);
     }

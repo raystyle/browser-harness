@@ -48,7 +48,7 @@
 
 | 应用 | 命令 | 说明 |
 |---|---|---|
-| web-fetch | `bh web-fetch <url> [--markdown\|--text] [--browser]`，或 `--current` 抓当前页 | 抓取网页正文，必要时自动升级为真实浏览器渲染 |
+| web-fetch | `bh web-fetch <url> [--markdown\|--text] [--browser]`，或 `--current` 抓当前页 | 抓取网页正文：浏览器路径用 Defuddle 在已渲染页面内提取（干净正文 + 作者/发布时间等元数据，GitHub/Wikipedia/Reddit/YouTube 站点专用提取器；失败降级启发式不断供），HTTP 优先三条件升级不变 |
 | google-search | `bh google-search <query> [--top N]`，再 `pluck [cache]` 取数 | 谷歌搜索：两步契约（指标先落盘、取数恒小）；CAPTCHA/墙如实报不重试 |
 | bing-search | `bh bing-search <query> [--top N] [--page N]`，再 `pluck [cache]` | 必应搜索：同两步契约，常驻 `__bs` SDK + 就绪判官 |
 | medium-search | `bh medium-search <query> [--top N]`；`grab <url> [--out file]` | Medium 站内搜索 + 文章正文转 Markdown（两步契约 `ms_search`/`ms_article`） |
@@ -82,8 +82,8 @@ bh --version           # 验证：应输出 package.json 里的版本号
 从 [Releases](https://github.com/raystyle/browser-harness/releases) 下载 `browser-harness-ts-<版本>.tgz` 附件后：
 
 ```bash
-npm install -g ./browser-harness-ts-0.4.5.tgz
-bh --version   # -> 0.4.5
+npm install -g ./browser-harness-ts-0.5.0.tgz
+bh --version   # -> 0.5.0
 ```
 
 ### 方式三：开发模式（源码直跑）
@@ -156,7 +156,7 @@ bh skill sync --yes
 或者把下面这段直接粘给你的 agent，它会装好 CLI 并执行第一个任务：
 
 ```
-Run: 从 https://github.com/raystyle/browser-harness/releases 下载 browser-harness-ts-0.4.5.tgz，`npm install -g ./browser-harness-ts-0.4.5.tgz`，确认 `bh --status` 可用，然后用
+Run: 从 https://github.com/raystyle/browser-harness/releases 下载 browser-harness-ts-0.5.0.tgz，`npm install -g ./browser-harness-ts-0.5.0.tgz`，确认 `bh --status` 可用，然后用
 browser 技能驱动我的浏览器：查看我打开的所有标签页，按主题分组，
 并截取最有意思的一个的截图。
 ```
