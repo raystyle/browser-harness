@@ -57,7 +57,7 @@
 
 | 层 | 代表项目 | 与 bh 的关系 |
 | --- | --- | --- |
-| agent-CLI 原语层 | agent-browser（Vercel，Rust）、gsd-browser、**browser-harness（#5，我们自己）** | 同层竞品；文中对我们家族的定位描述「attach 到运行中的 Chrome，agent 操作既有浏览器而非反复起一次性自动化会话」正是 D11 形态 |
+| agent-CLI 原语层 | agent-browser（Vercel，Rust）、gsd-browser、**browser-harness（#5，本仓家族：我们是 browser-use/browser-harness 的 Node/TS 新开分支，D01 移植）** | 文中对本家族的定位描述「attach 到运行中的 Chrome，agent 操作既有浏览器而非反复起一次性自动化会话」正是 D11 形态的家族传承 |
 | MCP 协议层 | playwright-mcp（微软）、chrome-devtools-mcp、browserbase-mcp | bh 不做 MCP（PRD 裁定）；playwright-mcp 也能连已认证浏览器 tab（同 D11 思路） |
 | 基础设施层 | Steel（浏览器会话托管）、PinchTab（Go，HTTP 面，a11y 引用，token 效率为设计目标） | 互补不竞争 |
 | 非 Chromium 层 | Lightpanda（Zig 从零写 headless，内存/耗时大幅低于 headless Chrome，项目自发布基准） | bh 依赖用户真浏览器，暂不需要 |
@@ -74,6 +74,6 @@
 
 ## 信源
 
-- GSD-Browser: Playwright Is Not Good Enough for Agents — Agent Native, medium.com/@agentnativedev/gsd-browser-playwright-is-not-good-enough-for-agents-e759eed565e7（登录态全文 2360 词，2026-09-08 取）
-- AI Agent Browsers Are Becoming a New Developer Stack: 25 Open-Source Projects to Watch — medium.com/@new2026/...bb64dfe21c6a（登录态全文 3162 词，2026-09-08 取）
-- Why the New Generation of CLIs Is Built with JavaScript — medium.com/@asierr/why-the-new-generation-of-clis-is-built-with-javascript-（付费墙截断，论点段完整）
+- GSD-Browser: Playwright Is Not Good Enough for Agents, Agent Native, medium.com/@agentnativedev/gsd-browser-playwright-is-not-good-enough-for-agents-e759eed565e7（登录态全文 2360 词，2026-09-08 取）
+- AI Agent Browsers Are Becoming a New Developer Stack: 25 Open-Source Projects to Watch, medium.com/@new2026/...bb64dfe21c6a（登录态全文 3162 词，2026-09-08 取）
+- Why the New Generation of CLIs Is Built with JavaScript, medium.com/@asierr/why-the-new-generation-of-clis-is-built-with-javascript-（付费墙截断，论点段完整）
