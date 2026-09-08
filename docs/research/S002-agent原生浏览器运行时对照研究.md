@@ -51,7 +51,29 @@
 - Q4 结论：值得吸收两项：**版本化元素引用**（建议 D35：helpers 增 `snapshot_interactives()` 返回版本化 ref 表，interaction-skills 落配方；与 click/fill 联动做 ref 失效防护），以及**语义意图层**（远期，domain-skills 承载） [推断: 机制价值判断，落地效果待立项验证]
 - 附带旁证：《Why the New Generation of CLIs Is Built with JavaScript》论证 TS+ESM 成熟度使 CLI DX 超越 bash/Python/Go，与 D28/D29（TS7 全严格 + Commander/Zod）路线一致 [实证: 文章开头论点段]
 
+## 赛道全景增补（《AI Agent Browsers Are Becoming a New Developer Stack: 25 Open-Source Projects to Watch》，2026-09-08 增）
+
+25 项目分层地图（原文观点 + bh 定位）[实证: 登录态全文 3162 词]：
+
+| 层 | 代表项目 | 与 bh 的关系 |
+| --- | --- | --- |
+| agent-CLI 原语层 | agent-browser（Vercel，Rust）、gsd-browser、**browser-harness（#5，我们自己）** | 同层竞品；文中对我们家族的定位描述「attach 到运行中的 Chrome，agent 操作既有浏览器而非反复起一次性自动化会话」正是 D11 形态 |
+| MCP 协议层 | playwright-mcp（微软）、chrome-devtools-mcp、browserbase-mcp | bh 不做 MCP（PRD 裁定）；playwright-mcp 也能连已认证浏览器 tab（同 D11 思路） |
+| 基础设施层 | Steel（浏览器会话托管）、PinchTab（Go，HTTP 面，a11y 引用，token 效率为设计目标） | 互补不竞争 |
+| 非 Chromium 层 | Lightpanda（Zig 从零写 headless，内存/耗时大幅低于 headless Chrome，项目自发布基准） | bh 依赖用户真浏览器，暂不需要 |
+| 混合确定性层 | Stagehand（代码确定处用代码、模糊处用 AI）、HyperAgent（简单操作 Playwright/模糊 AI/大流程 agent） | 与 bh「协议直调为主、语义助手为辅」同哲学 |
+| 升级引擎层 | Kinbrowser：HTTP+readability -> Lightpanda -> Chromium 按需升级，输出 Markdown | **与 web-fetch 的 HTTP 优先三条件升级浏览器完全同构**（独立再印证） |
+| 代码即动作层 | Webwright（MSR，SWE 式长任务：agent 写并执行 Playwright 代码） | bh 的 JS eval 即动作空间是同哲学更彻底形态 |
+| 网站侧反向层 | Rover（DOM-native SDK 让网站直接暴露 agent 接口） | 远期观察 |
+
+增量可借鉴（S002 结论增补）：
+
+- PinchTab 的 **token 效率作为浏览器运行时设计目标**（a11y 树 + 引用而非整页 DOM/截图喂模型）：与我们「两步契约指标恒小」「事件证据流」同向，可在 interaction-skills 补「最小观测面」配方 [推断]
+- Kinbrowser 的**分级引擎**理念可反哺 web-fetch：HTTP -> Defuddle(已上) -> 浏览器三级已隐式成立，配方文档显式化即可 [推断]
+- Rover 的网站侧暴露是远期趋势观察项，不立项 [推断]
+
 ## 信源
 
 - GSD-Browser: Playwright Is Not Good Enough for Agents — Agent Native, medium.com/@agentnativedev/gsd-browser-playwright-is-not-good-enough-for-agents-e759eed565e7（登录态全文 2360 词，2026-09-08 取）
+- AI Agent Browsers Are Becoming a New Developer Stack: 25 Open-Source Projects to Watch — medium.com/@new2026/...bb64dfe21c6a（登录态全文 3162 词，2026-09-08 取）
 - Why the New Generation of CLIs Is Built with JavaScript — medium.com/@asierr/why-the-new-generation-of-clis-is-built-with-javascript-（付费墙截断，论点段完整）
