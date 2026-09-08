@@ -151,7 +151,7 @@ bh 'return await goto_url("https://example.com")'
 bh 'return await js("document.title")'
 ```
 
-`bh` 的代码片段有三种给法——参数、**管道/stdin**、heredoc：
+`bh` 的代码片段有三种给法：参数、**管道/stdin**、heredoc：
 
 ```bash
 bh 'return 1+1'                     # 1) 单行参数
@@ -166,7 +166,7 @@ return t[0].url
 EOF
 ```
 
-session、活动 target、`globalThis.*` 变量跨调用保持——管道里定义的变量，下一条 `bh` 命令接着用。
+session、活动 target、`globalThis.*` 变量跨调用保持：管道里定义的变量，下一条 `bh` 命令接着用。
 
 ## 能力矩阵
 
