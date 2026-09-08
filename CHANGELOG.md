@@ -2,6 +2,11 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.4.1] - 2026-09-08
+
+- **升级轮换原语 `bh upgrade`（D30）**：守护进程版本漂移检测自动化：任何 bh 命令启动时轻量比对 `/health` 自报 version（缺字段视为 pre-0.4.0 老版），漂移则 stderr 提示一行；轮换显式执行：默认 dry-run 打印五步滚动计划，`--yes` 执行（x-intel 按序拆栈、companions 停、default daemon 重生、dashboard 换新、x-intel 恢复），spawn 子进程复用既有 stop/start 语义，用户 stopped 状态尊重不拉，终验 health.version 全对版 + 看板 200。包源三态：默认查 GitHub Release 最新版（不高于本地绝不降级，查询失败离线降级为滚动本地）；`--from <tgz|URL>` 显式源（URL 自动下载；安装经后台引导进程在本进程退出后执行，规避 Windows 运行中 dist 文件锁，装完自动续跑滚动）；`--offline` 跳过 Release 查询
+- **修复 Commander 选项三连环**：新命令未注册 KNOWN_COMMANDS 被裸片段路径吞给 daemon；action 回调参数语义误用（无参命令第一参是 opts 非命令对象，统一闭包 `cmd.opts()`）；顶层 `-y/-n` 与子命令同名 flag 抢占（`enablePositionalOptions()`：子命令前的 flag 归顶层、后的归子命令）；program 级操作数改从 `program.args` 取。实机滚动验收 0.4.0 至 0.4.1 五步全绿
+
 ## [0.4.0] - 2026-09-08
 
 - **CLI 工程化（D29）**：引入 Commander（结构化命令解析）与 Zod（环境变量与写操作选项校验）两个运行时依赖，零运行时依赖承诺改为白名单制（AGENTS/README/SKILL 同步）；裸 JS 片段与插件路由保持原直通路径（agent/插件合约零变化）；用法错误退出码统一为 2（G002 退出码表：0 成功 / 1 失败 / 2 用法 / 3 NOT_FOUND）；写操作默认只读：`bh --restart` 与 `bh skill sync` 不带 `--yes` 只打印计划（dry-run 语义），`--yes` 才执行（R001/README 步骤同步）；`--help` 升级为 Commander 标准帮助

@@ -15,6 +15,16 @@
 | 文档滞后六处清理 | 已完成 | INDEX（16 篇/74 用例/primitives 登记）、PRD D13 已交付、GOAL 锚点轮转、ROADMAP 收口、TODO 头部 | 内部 review |
 | tag v0.3.0 | 已完成 | npm test 全绿后打 tag | R001 发布 |
 
+## D30 任务清单
+
+| 任务项 | 进度 | 说明 | 出处 |
+| --- | --- | --- | --- |
+| 漂移检测自动化 | 已完成 | daemonVersionDrift（health.version 缺字段视为 pre-0.4.0）；warnVersionDrift 启动提示一行，滚动过程子进程实测可见 | PRD D30 |
+| upgrade 五步滚动 | 已完成 | upgradePlan 纯函数 4 单测；spawn 子进程复用 stop/start 语义；终验全对版 [实证: 2026-09-08 实机 0.4.0 至 0.4.1 五步全绿] | PRD D30 |
+| 包源三态 | 已完成 | Release 默认（cmpVersion 不降级 + 离线降级）；--from 本地/URL（后台引导安装）；--offline | 用户裁定 |
+| Commander 三连环修复 | 已完成 | KNOWN_COMMANDS 注册、action 闭包 opts、enablePositionalOptions、program.args 取操作数 [实证: doctor --json / skill sync --yes / upgrade --yes 全链] | 实机验收发现 |
+| 文档与封版 | 已完成 | README 能力矩阵 + R001 第 5 步改 bh upgrade；tag v0.4.1 | PLAN |
+
 ## D29 任务清单
 
 | 任务项 | 进度 | 说明 | 出处 |

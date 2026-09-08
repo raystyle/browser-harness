@@ -509,3 +509,56 @@ export async function restartDaemon(): Promise<void> {
 // (chrome-mode removed with the D11 spawn family: there is no bh-owned browser
 // to flip headless — the attached browser belongs to the user.)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// upgrade (D30): version-drift detection + planned rollout. Detection is
+// automatic (every bh invocation); rolling is explicit (`bh upgrade`).
+// ---------------------------------------------------------------------------
+
+/** The version of THIS CLI/daemon build (package.json next to dist/). */
+export function selfVersion(): string {
+  return String(JSON.parse(readFileSync(path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'package.json'), 'utf8')).version);
+}
+
+export type DaemonDrift = { name: string; port: number; version: string | null };
+
+/**
+ * Alive daemons whose /health version differs from ours. A missing version
+ * field means pre-0.4.0 health output — the oldest still rolls. Down daemons
+ * are not drift (nothing to roll; they come up on demand with fresh code).
+ */
+export async function daemonVersionDrift(): Promise<DaemonDrift[]> {
+  const self = selfVersion();
+  const found: DaemonDrift[] = [];
+  await Promise.all(instanceNames().map(async (name) => {
+    const rec = readInstanceRecord(name);
+    if (!rec) return;
+    const h = await health(rec.port, 600);
+    if (!h?.ok) return;
+    if ((h.version ?? null) !== self) found.push({ name, port: rec.port, version: h.version ?? null });
+  }));
+  return found;
+}
+
+export type UpgradeState = {
+  drift: DaemonDrift[];
+  xIntelRunning: boolean;
+  dashboardAlive: boolean;
+};
+
+/**
+ * Ordered rollout plan (pure, unit-tested): stacks stop top-down so nothing
+ * re-pulls mid-swap, the default daemon is reborn (companions re-pull with
+ * fresh code, user-stopped states are respected), the dashboard is swapped,
+ * and whatever was running comes back.
+ */
+export function upgradePlan(s: UpgradeState): string[] {
+  const steps: string[] = [];
+  if (s.xIntelRunning) steps.push('x-intel stop（按序拆栈：先写 stopped 防 supervisor 重拉，再停 worker 与专属 daemon）');
+  steps.push('停 companions 会话（page-detect watch / supervisor-core；用户 stopped 状态尊重不拉）');
+  steps.push('default daemon 重生（POST /quit + ensureDaemon；companions 幂等重拉到新版）');
+  if (s.dashboardAlive) steps.push('dashboard stop + 起新（页面版本握手自动重载）');
+  if (s.xIntelRunning) steps.push('x-intel start（worker 复活，收割继续）');
+  steps.push('终验：全部 daemon health.version 对版、看板 200');
+  return steps;
+}

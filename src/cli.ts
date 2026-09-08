@@ -277,7 +277,7 @@ async function legacyPassthrough(argv: string[]): Promise<void> {
 
 // --- structured commands (Commander, D29) -------------------------------------
 
-const KNOWN_COMMANDS = new Set(['sessions', 'rmux', 'dashboard', 'doctor', 'skill', 'skills', 'record', 'video', 'run']);
+const KNOWN_COMMANDS = new Set(['sessions', 'rmux', 'dashboard', 'doctor', 'skill', 'skills', 'record', 'video', 'run', 'upgrade']);
 
 function pkgVersion(): string {
   return (JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { version: string }).version;
@@ -300,6 +300,10 @@ function buildProgram(): Command {
     // Unknown options pass through untouched — the bare-snippet path may
     // carry anything, and structured commands parse their own flags strictly.
     .allowUnknownOption()
+    // Flags BEFORE the subcommand belong to the top level (`bh --restart
+    // --yes`), flags AFTER it belong to the subcommand (`bh upgrade --yes`)
+    // — without this the global -y/-n would swallow the subcommand's own.
+    .enablePositionalOptions()
     .exitOverride((err: { code?: string; message?: unknown; exitCode?: number }) => {
       if (err.code === 'commander.help' || err.code === 'commander.version' || err.code === 'commander.helpDisplayed') {
         process.exit(err.exitCode ?? EXIT.ok);
@@ -309,9 +313,12 @@ function buildProgram(): Command {
       process.exit(EXIT.usage);
     });
 
-  program.action(async (operands: string[]) => {
+  program.action(async () => {
     const raw = program.opts<Record<string, unknown>>();
     const flags = WriteOpts.parse(raw);
+    // Positional operands (e.g. the snippet after --new-tab) live here; the
+    // action's first parameter is NOT an array on argument-less programs.
+    const operands: string[] = program.args as string[];
     if (raw['status'] !== undefined) {
       if (await isUp()) {
         console.log(await healthJson());
@@ -429,11 +436,12 @@ function buildProgram(): Command {
       process.exit(EXIT.fail);
     });
 
-  program.command('doctor')
+  const doctorCmd = program.command('doctor')
     .description('diagnose the local install (daemon, browser attach, assets)')
     .option('--json', 'machine-readable report')
     .option('--require-existing-daemon', 'fail if no daemon is running')
-    .action(async (opts: { json?: boolean; requireExistingDaemon?: boolean }) => {
+    .action(async () => {
+      const opts = doctorCmd.opts<{ json?: boolean; requireExistingDaemon?: boolean }>();
       const { runDoctor } = await import('./admin.js');
       const r = await runDoctor({ requireExistingDaemon: opts.requireExistingDaemon === true });
       if (opts.json) {
@@ -445,13 +453,14 @@ function buildProgram(): Command {
       process.exit(r.healthy ? EXIT.ok : EXIT.fail);
     });
 
-  program.command('skill')
+  const skillCmd = program.command('skill')
     .alias('skills')
     .description('skill/asset distribution: status | sync')
     .argument('[sub]', 'status | sync')
     .option('-n, --dry-run', 'sync only prints what it would copy')
     .option('-y, --yes', 'sync executes (default is dry-run)')
-    .action(async (sub: string | undefined, opts: { dryRun?: boolean; yes?: boolean }) => {
+    .action(async (sub: string | undefined) => {
+      const opts = skillCmd.opts<{ dryRun?: boolean; yes?: boolean }>();
       const s = sub ?? 'status';
       const { skillStatus, skillSync, provisionWorkspace } = await import('./skills.js');
       const { workspaceDir } = await import('./paths.js');
@@ -492,13 +501,14 @@ function buildProgram(): Command {
       console.log(JSON.stringify({ enabled: recordingEnabled(), dir: activeRecordingDir() ?? null }));
     });
 
-  program.command('video')
+  const videoCmd = program.command('video')
     .description('recording pipeline: init|export|review <recording-dir>')
     .argument('<sub>', 'init | export | review')
     .argument('[recDir]', 'recording directory')
     .option('--brief <path>', 'edit brief JSON (default <recDir>/edit-brief.json)')
     .option('--out <path>', 'output path (default <recDir>/video.mp4)')
-    .action(async (sub: string, recDir: string | undefined, opts: { brief?: string; out?: string }) => {
+    .action(async (sub: string, recDir: string | undefined) => {
+      const opts = videoCmd.opts<{ brief?: string; out?: string }>();
       const video = await import('./video.js');
       if (sub === 'init' && recDir) {
         const r = video.videoInit(recDir);
@@ -534,7 +544,186 @@ function buildProgram(): Command {
       await runPlugin(name, args);
     });
 
+  const upgradeCmd = program.command('upgrade')
+    .description('roll stale daemons to this version (detection is automatic on every run; rolling is explicit)')
+    .option('--from <source>', 'install this tgz first (local path or https URL), then roll')
+    .option('--offline', 'skip the GitHub Release check; roll the locally installed build only')
+    .option('-n, --dry-run', 'print the plan only (default without --yes)')
+    .option('-y, --yes', 'execute the install (if a source is used) and rollout')
+    .action(async () => {
+      const opts = upgradeCmd.opts<{ from?: string; offline?: boolean; dryRun?: boolean; yes?: boolean }>();
+      const admin = await import('./admin.js');
+      if (opts.from) {
+        await installAndRoll(opts.from, opts);
+      }
+      if (!opts.offline) {
+        // Default source: GitHub Release latest (README install method 2 repo).
+        // Offline-tolerant: a failed probe degrades to rolling the local build.
+        const rel = await fetchReleaseLatest();
+        if (rel === null) {
+          process.stderr.write('bh: GitHub Release 查询失败（离线？），仅滚动本地已装版本\n');
+        } else if (cmpVersion(rel.version, admin.selfVersion()) > 0) {
+          process.stdout.write(`Release 最新 ${rel.version}，本地 ${admin.selfVersion()}\n`);
+          await installAndRoll(rel.url, opts);
+        }
+        // Release not newer (or equal): never downgrade — roll the local build.
+        // Same version: fall through — maybe only daemons are stale.
+      }
+      const { Rmux } = await import('./rmux.js');
+      const drift = await admin.daemonVersionDrift();
+      if (drift.length === 0) {
+        console.log(`全部守护进程已是 ${admin.selfVersion()}，无需滚动`);
+        process.exit(EXIT.ok);
+      }
+      const { DASHBOARD_PORT } = await import('./dashboard.js');
+      const alive = async (url: string) => {
+        try { const r = await fetch(url, { signal: AbortSignal.timeout(1000) }); return r.ok; } catch { return false; }
+      };
+      // x-intel counts as running if ITS daemon is alive (drift or not):
+      const xIntelRunning = await (async () => {
+        try {
+          const { readInstanceRecord } = await import('./paths.js');
+          const rec = readInstanceRecord('x-intel');
+          if (!rec) return false;
+          const h = await admin.health(rec.port, 600);
+          return h?.ok === true;
+        } catch { return false; }
+      })();
+      const dashboardAlive = await alive(`http://127.0.0.1:${DASHBOARD_PORT}`);
+      const plan = admin.upgradePlan({ drift, xIntelRunning, dashboardAlive });
+      console.log(`检测到漂移：${drift.map(d => `${d.name}(${d.version ?? 'pre-0.4.0'})`).join(' ')} -> ${admin.selfVersion()}`);
+      if (!guardWrite(`滚动 ${plan.length - 1} 步`, { yes: opts.yes, dryRun: opts.dryRun })) {
+        plan.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
+        process.exit(EXIT.ok);
+      }
+      // Execute: child processes reuse the EXACT stop/start semantics (stopped
+      // markers, ordered teardown, cold-boot guardians); we only orchestrate.
+      const self = process.execPath;
+      const cli = fileURLToPath(new URL('./cli.js', import.meta.url));
+      const step = async (n: number, label: string, fn: () => Promise<void>) => {
+        process.stdout.write(`  ${n}. ${label} ... `);
+        await fn();
+        console.log('ok');
+      };
+      const run = (args: string[]) => new Promise<void>(async (resolve, reject) => {
+        const { spawn } = await import('node:child_process');
+        const c = spawn(self, [cli, ...args], { stdio: ['ignore', 'ignore', 'inherit'], windowsHide: true });
+        c.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`${args.join(' ')} exited ${code}`)));
+        c.on('error', reject);
+      });
+      let n = 1;
+      if (xIntelRunning) await step(n++, 'x-intel stop', () => run(['x-intel', 'stop']));
+      await step(n++, '停 companions 会话', async () => {
+        const rmux = new Rmux();
+        await rmux.killSession('page-detect').catch(() => {});
+        await rmux.killSession('supervisor-core').catch(() => {});
+      });
+      await step(n++, 'default daemon 重生', () => run(['--restart', '--yes']));
+      if (dashboardAlive) await step(n++, 'dashboard 换新', async () => {
+        await run(['dashboard', 'stop']);
+        await run(['dashboard']);
+      });
+      if (xIntelRunning) await step(n++, 'x-intel start', () => run(['x-intel', 'start']));
+      // Final check: drift must be gone and what was running must be back.
+      process.stdout.write('  终验 ... ');
+      const after = await admin.daemonVersionDrift();
+      const dashOk = !dashboardAlive || await alive(`http://127.0.0.1:${DASHBOARD_PORT}`);
+      const xOk = !xIntelRunning || await (async () => {
+        try {
+          const { readInstanceRecord } = await import('./paths.js');
+          const rec = readInstanceRecord('x-intel');
+          if (!rec) return false;
+          const h = await admin.health(rec.port, 1000);
+          return h?.ok === true;
+        } catch { return false; }
+      })();
+      if (after.length > 0 || !dashOk || !xOk) {
+        console.log(`FAIL（drift 残留 ${JSON.stringify(after)}，dashboard ${dashOk}，x-intel ${xOk}）—— 查 bh sessions / bh doctor`);
+        process.exit(EXIT.fail);
+      }
+      console.log(`ok：全部守护 ${admin.selfVersion()}，看板 ${dashOk ? '200' : '未跑（原本未跑）'}`);
+      process.exit(EXIT.ok);
+    });
+
   return program;
+}
+
+// --- upgrade (D30): sources, bootstrapped install, rollout ---------------------
+
+const RELEASE_REPO = 'raystyle/browser-harness';
+
+/** GitHub Release latest with our tgz asset; null = unreachable/none. */
+async function fetchReleaseLatest(): Promise<{ version: string; url: string } | null> {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${RELEASE_REPO}/releases/latest`,
+      { headers: { 'user-agent': 'bh-upgrade' }, signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const rel = await res.json() as { tag_name?: string; assets?: Array<{ name?: string; browser_download_url?: string }> };
+    const version = (rel.tag_name ?? '').replace(/^v/, '');
+    const asset = rel.assets?.find(a => a.name === `browser-harness-ts-${version}.tgz`);
+    if (!version || !asset?.browser_download_url) return null;
+    return { version, url: asset.browser_download_url };
+  } catch {
+    return null;
+  }
+}
+
+/** numeric tri-part compare: >0 when a is newer, 0 equal, <0 older. */
+function cmpVersion(a: string, b: string): number {
+  const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+/**
+ * Install a tgz source (local path or https URL), then roll. The install runs
+ * in a detached bootstrapper AFTER this process exits — on Windows the running
+ * dist is file-locked, so npm can only replace it once we're gone. The
+ * bootstrapper then re-runs `bh upgrade --yes --offline` from the NEW build,
+ * which does the daemon rollout with fresh code.
+ */
+async function installAndRoll(src0: string, opts: { yes?: boolean; dryRun?: boolean }): Promise<never> {
+  const isUrl = /^https?:\/\//i.test(src0);
+  if (!guardWrite(`${isUrl ? `下载并安装 ${src0}` : `npm install -g ${src0}`}，随后自动滚动守护进程（安装在本进程退出后进行）`, opts)) process.exit(EXIT.ok);
+  let src = src0;
+  if (isUrl) {
+    process.stdout.write(`下载 ${src} ... `);
+    const res = await fetch(src);
+    if (!res.ok) { console.log(`FAIL (HTTP ${res.status})`); process.exit(EXIT.fail); }
+    const dest = path.join((await import('./paths.js')).tmpDir(), 'bh-upgrade-download.tgz');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(dest, Buffer.from(await res.arrayBuffer()));
+    src = dest;
+    console.log(`ok -> ${dest}`);
+  }
+  const { spawn } = await import('node:child_process');
+  const { tmpDir } = await import('./paths.js');
+  const { writeFile } = await import('node:fs/promises');
+  const boot = path.join(tmpDir(), 'bh-upgrade-bootstrap.mjs');
+  await writeFile(boot, upgradeBootstrap(src), 'utf8');
+  const c = spawn(process.execPath, [boot], { detached: true, stdio: 'inherit', windowsHide: true });
+  c.unref();
+  console.log('安装已移交后台引导：npm install -g 后自动滚动守护（输出直印本终端）');
+  process.exit(EXIT.ok);
+}
+
+/** Generated bootstrapper: install after the caller exits, then roll from the new build. */
+function upgradeBootstrap(src: string): string {
+  return [
+    '// generated by bh upgrade: npm install -g AFTER the calling bh exits',
+    '// (Windows file locks), then roll daemons from the freshly installed build.',
+    `const src = ${JSON.stringify(src)};`,
+    'const { spawnSync } = await import("node:child_process");',
+    'await new Promise(r => setTimeout(r, 600));',
+    'let r = spawnSync("npm", ["install", "-g", src], { stdio: "inherit", shell: true });',
+    'if (r.status !== 0) { process.stderr.write("install failed\\n"); process.exit(1); }',
+    'r = spawnSync("bh", ["upgrade", "--yes", "--offline"], { stdio: "inherit", shell: true });',
+    'process.exit(r.status ?? 1);',
+    '',
+  ].join('\n');
 }
 
 async function main(): Promise<void> {
@@ -558,10 +747,26 @@ async function main(): Promise<void> {
   // the agent/plugin contract; Commander never mangles those args.
   const first = argv[0];
   if (first !== undefined && !first.startsWith('-') && !KNOWN_COMMANDS.has(first)) {
+    await warnVersionDrift(argv);
     await legacyPassthrough(argv);
     return;
   }
+  await warnVersionDrift(argv);
   await buildProgram().parseAsync(argv, { from: 'user' });
+}
+
+/** D30 startup drift check: one stderr line when a daemon is older than us. Detection is automatic and must NEVER block or break the command. */
+async function warnVersionDrift(argv: string[]): Promise<void> {
+  if (argv[0] === 'upgrade' || argv.includes('--version') || argv.includes('--help') || argv.includes('-h')) return;
+  try {
+    const { daemonVersionDrift, selfVersion } = await import('./admin.js');
+    const drift = await daemonVersionDrift();
+    if (drift.length > 0) {
+      const names = drift.map(d => d.name).join('/');
+      const from = drift[0]?.version ?? 'pre-0.4.0';
+      process.stderr.write(`bh: 检测到 ${from} 守护进程（${names}），跑 bh upgrade 滚动到 ${selfVersion()}\n`);
+    }
+  } catch { /* detection is advisory only */ }
 }
 
 await main();
