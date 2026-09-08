@@ -58,6 +58,7 @@
 | 编号 | 文件 | 主题 |
 | --- | --- | --- |
 | S001 | `docs/research/S001-用户自开浏览器附着通道可行性.md` | D11 生死门：用户自开浏览器 CDP 附着通道核查与 PoC（已完成，判定可行，discovery 设计输入已成文） |
+| S002 | `docs/research/S002-agent原生浏览器运行时对照研究.md` | gsd-browser（agent 原生浏览器运行时）逐点对照：daemon/CDP/IPC 架构独立同源获旁证；人机共存维度 bh 独占；候选吸收版本化元素引用（待 D35） |
 
 登记表：`docs/research/README.md`。S001 为 D11 架构转向的首个研究场景。
 
