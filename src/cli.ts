@@ -304,6 +304,10 @@ function buildProgram(): Command {
     // --yes`), flags AFTER it belong to the subcommand (`bh upgrade --yes`)
     // — without this the global -y/-n would swallow the subcommand's own.
     .enablePositionalOptions()
+    // The top level carries a positional OPERAND — the snippet after flags
+    // (e.g. `bh --new-tab '<js>'`); Commander would otherwise reject it as
+    // "too many arguments".
+    .allowExcessArguments()
     .exitOverride((err: { code?: string; message?: unknown; exitCode?: number }) => {
       if (err.code === 'commander.help' || err.code === 'commander.version' || err.code === 'commander.helpDisplayed') {
         process.exit(err.exitCode ?? EXIT.ok);
