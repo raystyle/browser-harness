@@ -2,6 +2,10 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.6.3] - 2026-09-08
+
+- **技能面与文档对齐 0.6.x 能力**：SKILL.md frontmatter 补元素引用/无头引擎/升级轮换；CLI 表加 `bh upgrade`、`bh headless`（hl 别名）、`skill sites/site`；错误规约升级为退出码表（0/1/2/3）+ 写操作 dry-run 纪律；timeout 段补 remote 429 退避重试与挂锁自动清算。README 补无头引擎小节（`bh headless start --cookies`）与站点知识自动装载条目；仓库描述精简为一句
+
 ## [0.6.2] - 2026-09-08
 
 - **命令定名 `bh headless`（别名 `bh hl`）**：无头引擎命令从 engine 收敛为语义直白的 headless + 两字母缩写；实例名 headless-engine 与 `--engine` flag 不变；usage 与提示文案同步

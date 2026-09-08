@@ -24,7 +24,7 @@ bh 'await session.Page.navigate({url: "https://example.com"})'
 
 ```bash
 # 方式一：Release 包（推荐）
-npm install -g ./browser-harness-ts-0.6.2.tgz    # 从 Releases 下载
+npm install -g ./browser-harness-ts-0.6.3.tgz    # 从 Releases 下载
 # 方式二：源码
 git clone https://github.com/raystyle/browser-harness.git && cd browser-harness
 npm install && npm run build && npm pack && npm install -g ./browser-harness-ts-*.tgz
