@@ -8,3 +8,4 @@ smoke-test.png
 .ohmyagents/
 .oma/
 *.tsbuildinfo
+*.tgz
