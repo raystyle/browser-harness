@@ -193,7 +193,7 @@ CLI 工程约定：stdout 只出结果、stderr 出诊断；退出码 `0` 成功
 
 `bh dashboard` 起只读看板（http://127.0.0.1:9870，SSE 每秒推送，macOS 风格）：
 
-![bh dashboard](docs/images/dashboard.png)
+![bh dashboard](docs/images/dashboard-board.png)
 
 三栏一屏全览：
 
