@@ -1,6 +1,6 @@
 ---
 name: browser
-description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平台。两层 API——协议层（652 个 CDP 方法全类型直调）与语义层（goto_url/js/click_at_xy/wait_for_render 等 snake_case 助手，tab 纪律、等待判官、自愈）。经 bh CLI 运行 JS 片段，长驻 Node daemon 持有持久会话，session、活动 target、全局变量跨调用保持。附着用户自己打开的浏览器（永不 spawn，专属 tab 铁律与人机共存）。含插件应用（web-fetch/google-search/medium-search/bing-search/cookie-io/page-detect/super-ocr 验证码图识别/x-intel X 监控）、domain-skills 站点知识（94 站）、录制与视频导出。当用户想自动化、抓取、测试或检查浏览器时使用。
+description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平台。两层 API：协议层（652 个 CDP 方法全类型直调）与语义层（goto_url/js/click_at_xy/snapshot_interactives/click_ref 等 snake_case 助手，tab 纪律、等待判官、自愈）。经 bh CLI 运行 JS 片段，长驻 Node daemon 持久会话，session、活动 target、全局变量跨调用保持。附着用户自己打开的浏览器（永不 spawn 用户面，专属 tab 铁律与人机共存）；另有自起无头引擎（bh headless，临时隔离、可克隆登录态、用完即杀）。含插件应用（web-fetch/google-search/medium-search/bing-search/cookie-io/page-detect 页面告警/super-ocr/x-intel X 监控）、domain-skills 站点知识（94 站，goto 自动提示）、升级轮换（bh upgrade）。当用户想自动化、抓取、测试或检查浏览器时使用。
 ---
 
 # browser：bh 平台技能
@@ -49,7 +49,8 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | 命令 | 用途 |
 |---|---|
 | `bh '<js>'` / stdin | 片段求值（自动拉起 daemon） |
-| `bh --status/--start/--stop/--restart/--logs` | daemon 生命周期 |
+| `bh --status/--start/--stop/--restart/--logs` | daemon 生命周期（`--restart` 是写操作：需 `--yes`） |
+| `bh upgrade [--from <tgz或URL>] [--offline] [--yes]` | 升级轮换：检测老守护进程，安装（默认查 GitHub Release，不降级），六步稳定滚动，终验；日常命令发现漂移自动提示 |
 | `bh doctor [--json]` | 诊断：可附着浏览器 / daemon / 资产一致性 |
 | `bh sessions` | 实例清单 + 窗口分组 tab 表 + 附着策略 |
 | `bh dashboard [start\|stop\|status]` | 只读看板 127.0.0.1:9870（SSE 推送；墙类弹 Chrome 系统通知 D16/D18；独立应用卡片区 D17：描述/运行流水/日志行/库存 + 折叠拖拽；部署信息栏默认隐藏；页面版本握手自动重载） |
@@ -57,12 +58,12 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | `bh headless start [--cookies <domain>] \| stop \| status` | 自起无头 Chrome 引擎：临时 profile + 专属 daemon（BH_NAME=headless-engine，BH_CDP_WS 钉引擎）；`--cookies` 从用户浏览器克隆该域登录态；`BH_NAME=headless-engine bh '<js>'` 操作引擎；`bh web-fetch <url> --engine` 走引擎抓取；用完即杀绝不碰用户 profile |
 | `bh --new-tab '<js>'` | 显式新开 about:blank 附着执行 |
 | `bh run <name>` / `bh <name>` | 显式/路由调用应用 |
-| `bh skill status\|sync` | 技能三线同步 + workspace 铺装 |
+| `bh skill status\|sync\|sites\|site <段>` | 技能三线同步 + workspace 铺装 + 站点知识读取（sync 需 `--yes`；site 未命中退码 3） |
 | `bh record …` / `bh video …` | 录制与视频导出 |
 
-错误规约：`bh: <给 agent 的下一步指令>` 进 stderr + exit 1；usage 错误 exit 2。
+错误规约：`bh: <给 agent 的下一步指令>` 进 stderr。退出码表（G002）：`0` 成功 / `1` 执行失败 / `2` 用法与参数错 / `3` NOT_FOUND。写操作（`--restart`、`skill sync`、`upgrade`）默认 dry-run 只打印计划，`--yes` 才执行。
 
-**timeout 一律是秒**（`wait_for_element(sel, 15)` = 15 秒，不是毫秒）。大于 3600 会告警并封顶 600s（常见 ms/s 混用）。长跑 `bh '<js>'` 默认 300s（`BH_EVAL_TIMEOUT`）；超时后求值可能仍在 daemon 上，期间新 eval 被拒（429 eval busy），等它结算或 `bh --restart` 停掉。
+**timeout 一律是秒**（`wait_for_element(sel, 15)` = 15 秒，不是毫秒）。大于 3600 会告警并封顶 600s（常见 ms/s 混用）。长跑 `bh '<js>'` 默认 300s（`BH_EVAL_TIMEOUT`）；超时后求值可能仍在 daemon 上，期间新 eval 被拒（429 eval busy）：remote 层自动退避重试（400ms/1.2s 两级）大多无感；挂锁超宽限期后单飞槽自动清算；仍卡则 `bh --restart`。
 
 ## 应用（L4：workspace/apps/）
 
