@@ -181,7 +181,7 @@ session、活动 target、`globalThis.*` 变量跨调用保持：管道里定义
 | 录制/视频 | `bh record …` -> `bh video init/export` |
 | 状态探测 | `bh sessions`：对象模型（instance/browser/session/tab）+ 全实例清单 + 窗口分组 tab 表 + 新任务附着策略 |
 | 网页看板 | `bh dashboard`（详见下节） |
-| 页面守护 | `bh page-detect watch [--interval S]`：常驻只读探测全部页面，墙类边沿、白屏持久化自动告警；单次诊断 `bh page-detect [url片段]` 七判 |
+| 页面守护 | `bh page-detect watch [--interval S]`：常驻只读探测全部页面，识别 Cloudflare 五秒盾/人机挑战、Google 验证码拦截、登录墙、白屏卡死、资源被 CDN 拒绝等阻塞，出现即弹系统通知；单次诊断 `bh page-detect [url片段]` 七判 |
 | 验证码图 OCR | `bh super-ocr [url片段]`：扫描当前页定位验证码图片并识别（不填写）；交互式拼图/滑块报 CAPTCHA\|WALL |
 | 升级轮换 | `bh upgrade`（详见第一部分「更新」） |
 | 显式新 tab | `bh --new-tab '<js>'`（新开 about:blank 附着执行） |
@@ -216,7 +216,7 @@ CLI 工程约定：stdout 只出结果、stderr 出诊断；退出码 `0` 成功
 | bing-search | **必应搜索**：同上，支持翻页 | `bh bing-search <query> [--top N] [--page N]`，再 `pluck` |
 | medium-search | **搜 Medium 文章，把指定文章转成 Markdown 存本地** | `bh medium-search <query> [--top N]`；`grab <url> [--out file]` |
 | cookie-io | **导出/导入浏览器 Cookie**：换机器、换浏览器时迁移登录态（默认只导当前域名，防泄漏） | `bh cookie-io export\|import [--domain d\|--all]` |
-| page-detect | **诊断「这网页为什么用不了」**：打不开/一直转圈/要登录/被拦截，给出七种判定与处置建议。watch 模式后台盯住你所有页面，出问题弹系统通知 | `bh page-detect [url片段]`；`watch` / `unwatch` / `status` |
+| page-detect | **诊断「这网页为什么用不了」**：判断 Cloudflare 五秒盾/人机挑战、Google 验证码拦截、登录墙、白屏卡死、资源被 CDN 拒绝等阻塞，给出七种判定与处置建议（在浏览器里完成验证即恢复）。watch 模式后台盯住你所有页面，被拦截即弹系统通知 | `bh page-detect [url片段]`；`watch` / `unwatch` / `status` |
 | super-ocr | **识别网页上的验证码图片文字**（只识别给你看，不自动填写）；交互式拼图/滑块会如实告诉你需要人工 | `bh super-ocr [url片段] [--save]`；`setup` 装引擎 |
 | x-intel | **持续监控你的 X 时间线**：新帖自动收进本地数据库，可关键词搜索、统计、导出；你正在浏览 X 时它静默等待，不抢你的页面 | `bh x-intel start` / `stop` / `search <kw>` / `harvest` |
 | supervisor-core | **后台保活**：上面的常驻应用挂了自动拉起，无需手动 | 常驻，自动拉起 |
