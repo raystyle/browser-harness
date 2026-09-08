@@ -15,6 +15,13 @@
 | 文档滞后六处清理 | 已完成 | INDEX（16 篇/74 用例/primitives 登记）、PRD D13 已交付、GOAL 锚点轮转、ROADMAP 收口、TODO 头部 | 内部 review |
 | tag v0.3.0 | 已完成 | npm test 全绿后打 tag | R001 发布 |
 
+## D27 任务清单
+
+| 任务项 | 进度 | 说明 | 出处 |
+| --- | --- | --- | --- |
+| worker 非 home 页等待 | 已完成 | homeTab 判定（x.com 根/home，12 边界用例过）+ waitForTrigger/round 双闸门；等待不写 degraded 不发错误事件 [实证: 2026-09-08 node --check + 边界单测] | PRD D27 |
+| 封版 0.3.1 | 已完成 | pack + install -g + skill sync（+worker.mjs）+ 重启实机验证：详情页期间无错误刷屏，回 home 后 10:41:45 收割 13 贴库存 1234 [实证: 2026-09-08 安装态] | 用户裁定 |
+
 ## D13 任务清单（补记）
 
 | 任务项 | 进度 | 说明 | 出处 |

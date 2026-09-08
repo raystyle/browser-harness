@@ -132,6 +132,16 @@ async function sleepWithHeartbeat(seconds) {
 
 // --- one capture round -------------------------------------------------------
 
+/**
+ * The home timeline is the ONLY harvestable surface: x.com root or /home.
+ * A status page, search, profile… is the user browsing — probe/harvest must
+ * not run there (D27): wait until a timeline tab exists again.
+ */
+const HOME_URL_RE = /^https?:\/\/(www\.)?x\.com(?:\/(?:home)?\/?)?(?:\?.*)?$/;
+function homeTab(tabs) {
+  return tabs.find(t => HOME_URL_RE.test(t.url.split('#')[0]));
+}
+
 async function store(sqlite, tweets) {
   const db = sqlite.openDb(DB_PATH);
   try {
@@ -145,13 +155,17 @@ async function store(sqlite, tweets) {
 }
 
 async function round(h) {
-  // 1. find or open the x.com tab
+  // 1. find the home-timeline tab (D27: only the timeline is harvestable —
+  //    any other x.com page means the user is browsing; WAIT, don't fail).
+  //    No x.com tab at all still opens a background home tab (unchanged).
   const tabs = await h.list_tabs(false);
-  const xtab = tabs.find(t => t.url.includes('x.com'));
+  const xtab = homeTab(tabs);
   let targetId;
   if (xtab) {
     await h.switch_tab(xtab.targetId, false);
     targetId = xtab.targetId;
+  } else if (tabs.some(t => t.url.includes('x.com'))) {
+    return null; // user on a status/search/profile page — wait, not error
   } else {
     targetId = await h.new_tab('https://x.com/home');
   }
@@ -249,11 +263,18 @@ async function waitForTrigger(h) {
   while (Date.now() < deadline) {
     tick(); // the wait can outlive HEARTBEAT_TIMEOUT if we forget this
     try {
+      // D27 human-coexistence gate: probe only on the home timeline. While
+      // the user browses elsewhere on x.com there is nothing to probe —
+      // wait (and never touch their tab, never open a new one).
       // NOTE: never drain_events here — draining erases the daemon's event
       // ring that the dashboard peeks. The pill probe is the trigger; the
       // fallback cap covers quiet tabs.
-      const n = Number(await h.js(PILL_COUNT) ?? 0);
-      if (n > 0) return `pill x${n}`;
+      const home = homeTab(await h.list_tabs(false));
+      if (home) {
+        await h.switch_tab(home.targetId, false);
+        const n = Number(await h.js(PILL_COUNT) ?? 0);
+        if (n > 0) return `pill x${n}`;
+      }
     } catch { /* tab mid-navigation / daemon re-attaching — next tick */ }
     await sleep(5);
   }
@@ -300,7 +321,22 @@ async function main() {
     await sleepWithHeartbeat(Math.random() * 10);
     let ok = false;
     try {
-      const r = await round(h); // { inserted, total, earliest, latest, detected }
+      const r = await round(h); // { inserted, total, earliest, latest, detected } | null = waiting
+      if (!r) {
+        // D27: the user is browsing a non-timeline x.com page. This is
+        // coexistence, not failure — no degraded state, no error event;
+        // probing resumes the moment a home tab exists again.
+        wlog('x-intel::x-monitor 等待\n时间线 tab 不在（用户浏览其他 x.com 页面），不动用户页面，恢复探测');
+        writeStatus({
+          state: 'running',
+          metrics: [
+            { label: '检测节奏', value: '等待时间线 tab（用户浏览中）' },
+            { label: '库存', value: '监测中' },
+          ],
+        });
+        ok = true; // waiting is a completed round, not a failure
+        lastRoundAt = Date.now();
+      } else {
       const zh = (iso) => iso ? new Date(iso).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '无';
       const triggerZh = { pill: '新帖指示器', 'timeline-response': '时间线更新', 'title-badge': '标题计数', 'fallback-interval': '定时兜底' }[trigger.split(' ')[0]] ?? trigger;
       const dup = r.detected - r.inserted;
@@ -321,6 +357,7 @@ async function main() {
       });
       ok = true;
       lastRoundAt = Date.now();
+      }
     } catch (e) {
       wlog(`x-intel::x-monitor 刷新失败：${e?.message ?? e}\n${String(e?.stack ?? '').split('\n').slice(1, 4).join('\n')}`);
       writeStatus({
