@@ -209,17 +209,17 @@ CLI 工程约定：stdout 只出结果、stderr 出诊断；退出码 `0` 成功
 
 一次性应用经 default 守护进程执行；常驻应用住 rmux 会话、由 supervisor-core 统一守护，状态在看板「应用」卡片区可见。墙与人机验证一律如实报告，不硬闯。
 
-| 应用 | 命令 | 说明 |
+| 应用 | 它帮你做什么 | 命令 |
 |---|---|---|
-| web-fetch | `bh web-fetch <url> [--markdown\|--text] [--browser]`，或 `--current` 抓当前页 | 抓取网页正文：浏览器路径用 Defuddle 在已渲染页面内提取（干净正文 + 作者/发布时间等元数据，GitHub/Wikipedia/Reddit/YouTube 站点专用提取器；失败降级启发式不断供），HTTP 优先三条件升级不变；付费墙截断如实呈现，浏览器登录态下 `--browser` 可拿全文 |
-| google-search | `bh google-search <query> [--top N]`，再 `pluck [cache]` 取数 | 谷歌搜索：两步契约（指标先落盘、取数恒小）；CAPTCHA/墙如实报不重试 |
-| bing-search | `bh bing-search <query> [--top N] [--page N]`，再 `pluck [cache]` | 必应搜索：同两步契约，常驻 `__bs` SDK + 就绪判官 |
-| medium-search | `bh medium-search <query> [--top N]`；`grab <url> [--out file]` | Medium 站内搜索 + 文章正文转 Markdown（两步契约 `ms_search`/`ms_article`） |
-| cookie-io | `bh cookie-io export\|import`（默认按域名，`--domain`/`--all` 控制） | 迁移浏览器 Cookie 登录态；默认拒绝全量导出 |
-| page-detect | `bh page-detect [url片段]`；`watch [--interval S]` / `unwatch` / `status` | 单次诊断七判；watch 常驻只读探测全部 http(s) 页面；连续 eval busy 自动重启自身 daemon 自愈 |
-| super-ocr | `bh super-ocr [url片段] [--top N] [--save]`；`locate` / `setup` / `ready` | 扫描页面定位验证码图并用 PaddleOCR 识别（不自动填写）；引擎按需装到 `<BH_HOME>/ocr` |
-| x-intel | `bh x-intel start` / `stop` / `search <kw>` / `harvest` | X 时间线持续监控，自动收割新帖到本地 SQLite（`data/x_tweets.db`）；你浏览非时间线页时静默等待不动你的页面（人机共存） |
-| supervisor-core | 常驻，随 default 守护进程自动拉起（无需手动） | 统一守护常驻应用：会话消失、心跳超时、挂死自动重启；stopped 状态被尊重 |
+| web-fetch | **抓一个网页的正文**：给 URL 返回标题、正文、字数（`--markdown` 出纯文本）。普通网页直接 HTTP 抓；需要登录态或被反爬的页面自动升级用你打开的浏览器渲染后抓（作者/发布时间等元数据一并出） | `bh web-fetch <url> [--markdown] [--browser]`；`--current` 抓当前页 |
+| google-search | **谷歌搜索**：返回前 N 条标题/链接/摘要；结果落盘，`pluck` 分页取数 | `bh google-search <query> [--top N]`，再 `bh google-search pluck` |
+| bing-search | **必应搜索**：同上，支持翻页 | `bh bing-search <query> [--top N] [--page N]`，再 `pluck` |
+| medium-search | **搜 Medium 文章，把指定文章转成 Markdown 存本地** | `bh medium-search <query> [--top N]`；`grab <url> [--out file]` |
+| cookie-io | **导出/导入浏览器 Cookie**：换机器、换浏览器时迁移登录态（默认只导当前域名，防泄漏） | `bh cookie-io export\|import [--domain d\|--all]` |
+| page-detect | **诊断「这网页为什么用不了」**：打不开/一直转圈/要登录/被拦截，给出七种判定与处置建议。watch 模式后台盯住你所有页面，出问题弹系统通知 | `bh page-detect [url片段]`；`watch` / `unwatch` / `status` |
+| super-ocr | **识别网页上的验证码图片文字**（只识别给你看，不自动填写）；交互式拼图/滑块会如实告诉你需要人工 | `bh super-ocr [url片段] [--save]`；`setup` 装引擎 |
+| x-intel | **持续监控你的 X 时间线**：新帖自动收进本地数据库，可关键词搜索、统计、导出；你正在浏览 X 时它静默等待，不抢你的页面 | `bh x-intel start` / `stop` / `search <kw>` / `harvest` |
+| supervisor-core | **后台保活**：上面的常驻应用挂了自动拉起，无需手动 | 常驻，自动拉起 |
 
 ## 用作 agent 技能
 
