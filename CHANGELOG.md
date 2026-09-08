@@ -2,6 +2,10 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.5.1] - 2026-09-08
+
+- **看板只读旁路消除高频抢锁（D34）**：看板每秒快照对每实例发 list_tabs/current_tab eval 几乎常占 daemon 单飞锁，worker 探测/收割高频撞 429（实测 12 点后 x-intel 38 次、page-detect 50 次，看似两应用冲突实为看板两头抢锁）。修复四件套：daemon 新增只读旁路端点 `GET /tabs`（list_tabs + current_tab 合并）与 `GET /peek`（事件环窥视），不占 eval 单飞锁；看板 tabs/peek 改走旁路；remote 层（worker/应用统一通道）遇 429 自动退避重试（400ms/1.2s 两级），瞬时锁竞争不再上抛为应用失败；应用节奏错峰标准落 G002 第 8 条（page-detect 10s ±15% 抖动 + 页间 150ms、x-intel 6-8s 随机，互质 + 抖动防定点对齐）
+
 ## [0.5.0] - 2026-09-08
 
 - **web-fetch 正文提取升级 Defuddle（D33）**：浏览器路径改为在已渲染页面内注入 Defuddle（kepano/Obsidian Web Clipper 同源库）解析：干净正文 + 元数据（title/author/published/description/content_html/markdown）+ 站点专用提取器（GitHub/Wikipedia/Reddit/YouTube 等）；defuddle 为构建期 devDependency，esbuild 打成自包含 IIFE（`assets/sdk/extract.min.js`），**运行时依赖白名单不变**；失败降级原启发式不断供（stderr 一行诊断）；HTTP 优先与三条件升级不变；输出形状向后兼容（新字段可选追加）。顺带消除 medium.com 等大页「老是 500」的根因：旧路径回传整页 outerHTML（几 MB）触发 CDP 大返回冻结（M102 同源），新路径只回传 KB 级干净正文；付费墙截断如实呈现（登录态经附着浏览器可用）

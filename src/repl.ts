@@ -210,6 +210,29 @@ const server = createServer(async (req, res) => {
       }
     }
 
+    // Read-only side channels (D34): the dashboard snapshots every second
+    // and must never contend the single-flight eval lock with the resident
+    // workers. /tabs and /peek are pure reads served straight from the
+    // harness — they neither wait on nor hold the eval slot.
+    if (req.method === 'GET' && url.pathname === '/tabs') {
+      try {
+        const tabs = await helpers.list_tabs();
+        let current: string | null = null;
+        try { current = (await helpers.current_tab())?.targetId ?? null; } catch { /* not attached — normal for lazy instances */ }
+        return json(res, 200, { ok: true, tabs, current });
+      } catch (e) {
+        return json(res, 200, { ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    if (req.method === 'GET' && url.pathname === '/peek') {
+      const limit = Number(url.searchParams.get('limit') ?? 50);
+      try {
+        return json(res, 200, { ok: true, events: await harness.__bh_meta('peek', { limit }) });
+      } catch (e) {
+        return json(res, 200, { ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+
     if (req.method === 'GET' && url.pathname === '/meta') {
       return json(res, 200, {
         ok: true,

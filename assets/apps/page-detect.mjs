@@ -161,6 +161,9 @@ async function watchLoop(h, intervalSec) {
       let prevSid = /** @type {any} */ (null);
       for (const t of tabs) {
         if (prevSid) { await h.cdp('Target.detachFromTarget', { sessionId: prevSid }).catch(() => {}); prevSid = null; }
+        // D34 cadence: a small inter-tab gap so a sweep of N tabs never
+        // machine-guns the daemon with back-to-back evals.
+        await new Promise(r => setTimeout(r, 150));
         const pr = await probeTab(h, t.targetId);
         if (!pr) continue;
         prevSid = pr.sid;
@@ -224,7 +227,9 @@ async function watchLoop(h, intervalSec) {
           { stdio: 'ignore', windowsHide: true, timeout: 60_000 });
       } catch { /* next streak retries */ }
     }
-    await new Promise(r => setTimeout(r, intervalSec * 1000));
+    // D34 cadence: ±15% jitter on the sweep interval so the watcher and
+    // x-intel's probe loop never align phases (coprime base + jitter).
+    await new Promise(r => setTimeout(r, intervalSec * 1000 * (0.85 + Math.random() * 0.3)));
   }
 }
 

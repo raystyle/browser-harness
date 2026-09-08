@@ -8,15 +8,30 @@ import type { CdpEvent, Host } from './host.js';
 import { tmpDir, workspaceDir } from './paths.js';
 import { envNumber } from './env.js';
 
+/**
+ * One remote meta call with eval-busy backoff (D34): a 429 means the
+ * daemon's single-flight slot is taken RIGHT NOW (another worker's eval,
+ * usually finishing within seconds). Retry with backoff before giving up —
+ * transient contention must not surface as an app failure.
+ */
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
 async function meta<T>(port: number, op: string, payload: unknown, timeoutMs?: number): Promise<T> {
   const code = `return await __bh_meta(${JSON.stringify(op)}, ${JSON.stringify(payload)})`;
-  const res = await fetch(`http://127.0.0.1:${port}/eval`, {
-    method: 'POST', body: code,
-    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
-  });
-  const body = await res.text();
-  if (!res.ok) throw new Error(body.trim().split('\n')[0] ?? `remote ${op} failed (${res.status})`);
-  try { return JSON.parse(body) as T; } catch { return body as unknown as T; }
+  const backoffs = [400, 1_200]; // two retries past the first attempt
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`http://127.0.0.1:${port}/eval`, {
+      method: 'POST', body: code,
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+    });
+    if (res.status === 429 && attempt < backoffs.length) {
+      await sleep(backoffs[attempt] ?? 1_200);
+      continue;
+    }
+    const body = await res.text();
+    if (!res.ok) throw new Error(body.trim().split('\n')[0] ?? `remote ${op} failed (${res.status})`);
+    try { return JSON.parse(body) as T; } catch { return body as unknown as T; }
+  }
 }
 
 export function remoteHost(port: number): Host {

@@ -277,7 +277,9 @@ async function waitForTrigger(h) {
         if (n > 0) return `pill x${n}`;
       }
     } catch { /* tab mid-navigation / daemon re-attaching — next tick */ }
-    await sleep(5);
+    // D34 cadence: 6-8s jittered (coprime with page-detect's 10s sweep, and
+    // the jitter prevents fixed-phase alignment — apps never probe in lockstep).
+    await sleep(6 + Math.random() * 2);
   }
   return 'fallback-interval';
 }

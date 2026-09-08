@@ -67,15 +67,18 @@ async function collectInstance(name: string): Promise<InstanceRow> {
   // Operable tabs (browser-level list_tabs) work even when the instance is
   // connected but NOT attached; current_tab() throws "not attached" for the
   // lazy default instance — that is normal, not an error.
+  // D34: this runs every second — it MUST use the read-only /tabs side
+  // channel, never the single-flight /eval (the workers own that lock).
   let tabs: Array<{ targetId: string; url: string; title: string }> = [];
-  try {
-    tabs = await evalOn<Array<{ targetId: string; url: string; title: string }>>(port,
-      'return await list_tabs()', 4000) ?? [];
-  } catch { /* tabs unavailable */ }
   let cur: { targetId: string } | null = null;
   try {
-    cur = await evalOn<{ targetId: string } | null>(port, 'return await current_tab()', 4000);
-  } catch { /* not attached — normal for the lazy default instance */ }
+    const r = await fetch(`http://127.0.0.1:${port}/tabs`, { signal: AbortSignal.timeout(2000) });
+    const j = await r.json() as { ok: boolean; tabs?: Array<{ targetId: string; url: string; title: string }>; current?: string | null };
+    if (j.ok && Array.isArray(j.tabs)) {
+      tabs = j.tabs;
+      cur = j.current ? { targetId: j.current } : null;
+    }
+  } catch { /* tabs unavailable (older daemon without /tabs — falls back to empty) */ }
   row.tabs = tabs.map(t => ({
     targetId: t.targetId, url: t.url, title: t.title,
     active: t.targetId === cur?.targetId,
@@ -95,8 +98,13 @@ async function collectVerdict(inst: InstanceRow): Promise<{ verdict: string; adv
   try {
     const probe = await evalOn<{ len: number; head: string }>(inst.port,
       'return JSON.parse(await js(\'JSON.stringify({len: document.body.innerText.length, head: document.body.innerText.slice(0,300)})\'))', 5000);
-    const evs = await evalOn<Array<{ method: string; params?: any }>>(inst.port,
-      'return await __bh_meta("peek", {limit: 50})', 4000).catch(() => [] as Array<{ method: string; params?: any }>);
+    // D34: the event-ring peek rides the read-only /peek side channel.
+    let evs: Array<{ method: string; params?: any }> = [];
+    try {
+      const r = await fetch(`http://127.0.0.1:${inst.port}/peek?limit=50`, { signal: AbortSignal.timeout(2000) });
+      const j = await r.json() as { ok: boolean; events?: Array<{ method: string; params?: any }> };
+      if (j.ok && Array.isArray(j.events)) evs = j.events;
+    } catch { /* older daemon: no evidence, verdict still works */ }
     const head = String(probe?.head ?? '');
     let challenge = false, fails = 0;
     for (const e of evs ?? []) {
