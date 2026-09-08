@@ -41,9 +41,17 @@ export async function main(argv = [], ctx) {
   if (cmd === 'import') {
     const p = argv[1];
     if (!p) { process.stderr.write('bh: usage: bh cookies import <path>\n'); return 2; }
-    const payload = JSON.parse(readFileSync(p, 'utf8'));
-    if (payload.schema !== SCHEMA) {
-      process.stderr.write(`bh: unknown cookie file schema ${JSON.stringify(payload.schema)} (expected ${SCHEMA})\n`);
+    // Controlled parse (upstream PR#755 lesson): a malformed or non-object
+    // cookie file must report a readable error, never a raw SyntaxError.
+    let payload;
+    try {
+      payload = JSON.parse(readFileSync(p, 'utf8'));
+    } catch (e) {
+      process.stderr.write(`bh: cookie file is not valid JSON: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
+    }
+    if (typeof payload !== 'object' || payload === null || payload.schema !== SCHEMA) {
+      process.stderr.write(`bh: unknown cookie file schema ${JSON.stringify(payload?.schema)} (expected ${SCHEMA})\n`);
       return 1;
     }
     let ok = 0, failed = 0;
