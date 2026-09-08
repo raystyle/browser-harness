@@ -12,9 +12,14 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 
 ## 意图路由（想做什么 -> 用什么）
 
+**动手前硬性两步（先查再写，别重新发明既存知识）**：
+
+1. **站点任务先读站点知识**：目标站若在 94 站内，先 `bh skill site <段>`（如 `bh skill site github`）拿选择器与结构；`bh skill sites` 列全部。`goto_url()` 的返回也会自动提示 `domain_skills`（默认开启，`BH_DOMAIN_SKILLS=0` 关）
+2. **冷门交互先查配方**：下拉/shadow-DOM/拖拽/iframe/dialog/downloads 等机制动手前，先读 `interaction-skills/<机制>.md`（同目录 16 篇，一文件一机制）
+
 | 意图 | 入口 | 细节下钻 |
 | --- | --- | --- |
-| 打开/操作某网站 | `bh '<js>'` + `goto_url` / `new_tab` / `switch_tab` | `primitives/attach.md`；该站的 domain-skill（见站点索引） |
+| 打开/操作某网站 | `bh '<js>'` + `goto_url` / `new_tab` / `switch_tab` | `primitives/attach.md`；该站的 domain-skill（`bh skill site <段>`） |
 | 看现在能操作哪些网页 | `bh sessions`；看板 `bh dashboard` | `primitives/observability.md` |
 | 搜东西 | `bh google-search <q> --top N` / `bh bing-search <q> --top N`（两步契约） | `primitives/search.md` |
 | 抓取并分析某页内容 | `bh web-fetch <url>`（HTTP 优先三条件升级浏览器） | `primitives/fetch-analyze.md` |

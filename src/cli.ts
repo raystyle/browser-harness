@@ -459,14 +459,15 @@ function buildProgram(): Command {
 
   const skillCmd = program.command('skill')
     .alias('skills')
-    .description('skill/asset distribution: status | sync')
-    .argument('[sub]', 'status | sync')
+    .description('skill/asset distribution: status | sync | sites | site')
+    .argument('[sub]', 'status | sync | sites | site')
+    .argument('[seg]', 'site segment for `site` (e.g. github)')
     .option('-n, --dry-run', 'sync only prints what it would copy')
     .option('-y, --yes', 'sync executes (default is dry-run)')
-    .action(async (sub: string | undefined) => {
+    .action(async (sub: string | undefined, seg: string | undefined) => {
       const opts = skillCmd.opts<{ dryRun?: boolean; yes?: boolean }>();
       const s = sub ?? 'status';
-      const { skillStatus, skillSync, provisionWorkspace } = await import('./skills.js');
+      const { skillStatus, skillSync, provisionWorkspace, skillSites, skillSite } = await import('./skills.js');
       const { workspaceDir } = await import('./paths.js');
       if (s === 'sync') {
         // Write op (D29): without --yes only the plan is printed.
@@ -481,8 +482,16 @@ function buildProgram(): Command {
         for (const st of skillStatus()) {
           console.log(`${st.state.padEnd(14)} ${st.tool.padEnd(8)} ${st.dir}${st.hash ? `  (${st.hash})` : ''}`);
         }
+      } else if (s === 'sites') {
+        const sites = skillSites();
+        console.log(sites.length ? sites.join(' ') : '(no domain-skills deployed)');
+      } else if (s === 'site') {
+        if (!seg) { process.stderr.write('bh: usage: bh skill site <segment>（如 github）\n'); process.exit(EXIT.usage); }
+        const text = skillSite(seg);
+        if (!text) { process.stderr.write(`bh: no domain-skills for '${seg}'（bh skill sites 列全部）\n`); process.exit(EXIT.notFound); }
+        console.log(text);
       } else {
-        process.stderr.write('bh: usage: bh skill status|sync [--dry-run] [--yes]\n');
+        process.stderr.write('bh: usage: bh skill status|sync|sites|site <seg> [--dry-run] [--yes]\n');
         process.exit(EXIT.usage);
       }
       process.exit(EXIT.ok);

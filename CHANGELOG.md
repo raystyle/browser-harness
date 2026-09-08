@@ -2,6 +2,10 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.5.2] - 2026-09-08
+
+- **技能资产激活（D36）**：interaction-skills/domain-skills 长期低触发的三重根因修复。分发面补全：`bh skill sync` 现在把 `primitives/` 与 `domain-skills/`（94 站，1.6MB）一并铺进 ~/.claude 与 ~/.codex 的技能目录，agent 技能树自包含；domain-skills 提示**默认开启**（`BH_DOMAIN_SKILLS=0` 显式关），`goto_url()` 返回自动附 `domain_skills` 文件清单与 `bh skill site <段>` 提示；新原语 `bh skill sites`（列 94 站）与 `bh skill site <段>`（一条命令读站点知识全文，NOT_FOUND 退码 3）；SKILL.md 加「动手前硬性两步」路由（站点任务先读站点知识、冷门交互先查配方）
+
 ## [0.5.1] - 2026-09-08
 
 - **看板只读旁路消除高频抢锁（D34）**：看板每秒快照对每实例发 list_tabs/current_tab eval 几乎常占 daemon 单飞锁，worker 探测/收割高频撞 429（实测 12 点后 x-intel 38 次、page-detect 50 次，看似两应用冲突实为看板两头抢锁）。修复四件套：daemon 新增只读旁路端点 `GET /tabs`（list_tabs + current_tab 合并）与 `GET /peek`（事件环窥视），不占 eval 单飞锁；看板 tabs/peek 改走旁路；remote 层（worker/应用统一通道）遇 429 自动退避重试（400ms/1.2s 两级），瞬时锁竞争不再上抛为应用失败；应用节奏错峰标准落 G002 第 8 条（page-detect 10s ±15% 抖动 + 页间 150ms、x-intel 6-8s 随机，互质 + 抖动防定点对齐）

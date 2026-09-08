@@ -5,7 +5,7 @@
  */
 
 import { MARKER, MARKER_PREFIX, isDashboardUrl, dashboardForbiddenMsg, type CdpEvent, type Host } from './host.js';
-import { envNumber } from './env.js';
+import { envNumber, envTriBool } from './env.js';
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
@@ -206,7 +206,11 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
     } catch {
       r = await _adjudicate_lost_navigation(url, envNumber('BH_IPC_TIMEOUT', 5) * 1000);
     }
-    if (process.env.BH_DOMAIN_SKILLS === '1') {
+    // Domain skills (D36): ON by default (opt-OUT with BH_DOMAIN_SKILLS=0).
+    // goto announces which site-knowledge files cover the destination host, so
+    // the agent can immediately read them (`bh skill site <seg>`) instead of
+    // re-deriving selectors that already exist.
+    if (envTriBool('BH_DOMAIN_SKILLS') !== false) {
       const seg = (new URL(url).hostname.replace(/^www\./, '').split('.')[0]) ?? '';
       const dir = `${host.workspaceDir()}/domain-skills/${seg}`;
       const out: Record<string, unknown> = { ...r };
@@ -220,7 +224,10 @@ export function createHelpers(host: Host, hooks: { onAction?: (name: string, arg
             else if (f.endsWith('.md')) files.push(f);
           }
         })(dir);
-        if (files.length > 0) out.domain_skills = files.sort().slice(0, 10);
+        if (files.length > 0) {
+          out.domain_skills = files.sort().slice(0, 10);
+          out.domain_skills_hint = `bh skill site ${seg} 可读全文`;
+        }
       } catch { /* no domain skills for this host */ }
       return out;
     }

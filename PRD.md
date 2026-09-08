@@ -2,6 +2,7 @@
 
 > 角色：需求清单，四原语之首：需求驱动目标。GOAL 的每个目标应能回指本清单条目。
 > 分工：PRD=要什么；GOAL=要达成什么；PLAN=怎么做；TODO=做到哪。
+| D36 | 技能资产激活：interaction-skills/domain-skills 长期低触发。根因三重：分发面残缺（primitives 与 domain-skills 不随技能铺装，SKILL 引用的知识不在 agent 技能树内）、BH_DOMAIN_SKILLS 默认关、只回文件名无读取通道。修复：分发面扩 primitives+domain-skills（1.6MB 进 ~/.claude 与 ~/.codex 技能目录）；domain-skills 默认开启（BH_DOMAIN_SKILLS=0 显式关），goto 返回附提示；新原语 `bh skill sites` / `bh skill site <段>`；SKILL.md 加「动手前硬性两步」路由（站点任务先读站点知识、冷门交互先查配方） | 已交付 | 第 1 轮（2026-09-08 用户观察「没真正用起来」+ 裁定分发+路由+原语、BH_DOMAIN_SKILLS 默认开） | 验收：技能目录含 domain-skills 94 站；bh skill site github 出内容；goto 返回 domain_skills 提示 |
 
 ## 生命周期
 
