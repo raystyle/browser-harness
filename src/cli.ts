@@ -277,7 +277,7 @@ async function legacyPassthrough(argv: string[]): Promise<void> {
 
 // --- structured commands (Commander, D29) -------------------------------------
 
-const KNOWN_COMMANDS = new Set(['sessions', 'rmux', 'dashboard', 'doctor', 'skill', 'skills', 'record', 'video', 'run', 'upgrade', 'engine']);
+const KNOWN_COMMANDS = new Set(['sessions', 'rmux', 'dashboard', 'doctor', 'skill', 'skills', 'record', 'video', 'run', 'upgrade', 'headless', 'hl']);
 
 function pkgVersion(): string {
   return (JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { version: string }).version;
@@ -671,7 +671,8 @@ function buildProgram(): Command {
     });
 
 
-  const engineCmd = program.command('engine')
+  const engineCmd = program.command('headless')
+    .alias('hl')
     .description('self-started headless Chrome engine: an ephemeral tool-grade browser (temp profile, killed on stop; never the user browser)')
     .argument('[sub]', 'start | stop | status')
     .option('--cookies <domain>', 'on start: clone this domain\'s cookies from the user\'s browser into the engine (login-state carry)')
@@ -768,7 +769,7 @@ function buildProgram(): Command {
         }, null, 1));
         process.exit(EXIT.ok);
       }
-      process.stderr.write('bh: usage: bh engine start [--cookies <domain>] | stop | status\n');
+      process.stderr.write('bh: usage: bh headless start [--cookies <domain>] | stop | status\n');
       process.exit(EXIT.usage);
     });
 

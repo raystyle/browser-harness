@@ -2,6 +2,10 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.6.2] - 2026-09-08
+
+- **命令定名 `bh headless`（别名 `bh hl`）**：无头引擎命令从 engine 收敛为语义直白的 headless + 两字母缩写；实例名 headless-engine 与 `--engine` flag 不变；usage 与提示文案同步
+
 ## [0.6.1] - 2026-09-08
 
 - **引擎实例改名 headless-engine**：`bh engine` 命令名不变，专属 daemon 实例（BH_NAME/注册表/web-fetch 转发）统一为 `headless-engine`（语义精确）；修全局替换误伤命令名导致的 `bh engine` 掉落裸片段路径；二进制定位 CLIXML 噪音收敛（stderr 隔离）

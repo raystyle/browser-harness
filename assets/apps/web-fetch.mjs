@@ -34,7 +34,7 @@ export async function main(argv = [], ctx) {
       const probe = await fetch(`http://127.0.0.1:${rec.port}/health`, { signal: AbortSignal.timeout(1200) });
       if (!probe.ok) throw new Error('engine daemon unhealthy');
     } catch {
-      process.stderr.write('bh: engine not running — start it first: bh engine start\n');
+      process.stderr.write('bh: headless engine not running — start it first: bh headless start\n');
       return 1;
     }
     const { spawnSync } = await import('node:child_process');
