@@ -15,6 +15,7 @@ bh 'await session.Page.navigate({url: "https://example.com"})'
 - **协议即 API**：56 域 652 方法带 TypeScript 类型直调；语义层助手（`goto_url` / `js` / `snapshot_interactives` / `click_ref`）与 Python 主仓同名对齐
 - **人机共存**：永不启动浏览器，附着你正在用的 Chrome（144+ 官方调试通道）；只在专属 tab 工作，绝不碰你看着的页面
 - **常驻守护**：session、活动标签、全局变量跨调用保持；监控、看板、自愈、升级轮换全自动
+- **站点知识自动装载**：导航到 94 个站内任何一个，自动提示该站的既存操作知识（选择器/结构），一条命令读到全文——不重新发明轮子
 - **即用应用**：网页抓取（Defuddle 正文提取）、谷歌/必应/Medium 搜索、页面被拦截实时弹窗告警、X 时间线监控入库、验证码图识别
 
 ## 安装
@@ -55,6 +56,18 @@ agent 只需一句提示即可接入（技能自动同步到 Claude Code 与 Cod
 
 ```
 用 browser 技能驱动我的浏览器：查看我打开的标签页，按主题分组，截最有意思的一张图。
+```
+
+## 无头引擎（可选）
+
+不想动你正开着的浏览器？起一个隔离的临时 Chrome：
+
+```bash
+bh engine start                    # 临时 profile，用完即杀
+bh engine start --cookies github.com   # 顺带从你的浏览器克隆该域登录态
+BH_NAME=engine bh '<js>'           # 像操作任何浏览器一样操作引擎
+bh web-fetch <url> --engine        # 抓取走引擎
+bh engine stop                     # 杀进程、清目录，你的浏览器全程无扰
 ```
 
 ## 升级
