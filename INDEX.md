@@ -30,11 +30,12 @@
 | 源码 | `src/video.ts` | 视频管线：帧 -> 编辑梗概 -> 合成 mp4 |
 | 源码 | `src/sqlite.ts` | x_tweets 存储（node:sqlite），DDL 承 Python 原版 |
 | 源码 | `src/rmux.ts` | rmux CLI 驱动（x-monitor 自愈监督，非官方 SDK） |
-| 源码 | `src/*.test.ts` | 单元测试（node:test，55 用例） |
+| 源码 | `src/*.test.ts` | 单元测试（node:test，74 用例） |
 | 脚本 | `scripts/gen.ts` | 代码生成：protocol/*.json -> generated.ts |
 | 数据 | `protocol/` | browser_protocol.json + js_protocol.json（上游协议快照） |
 | 技能 | `skill/SKILL.md` | agent 技能入口（装到 ~/.claude/skills/browser/） |
-| 技能 | `skill/interaction-skills/` | 18 篇纯 CDP 交互配方（一文件一机制） |
+| 技能 | `skill/primitives/` | L1 原语契约 5 篇（attach/search/fetch-analyze/detect/observability） |
+| 技能 | `skill/interaction-skills/` | 16 篇纯 CDP 交互配方（一文件一机制） |
 | 资产 | `assets/` | domain-skills 94 站知识库 + apps 八应用（web-fetch/google-search/bing-search/cookie-io/page-detect/medium-search/x-intel 全家桶/super-ocr）+ sdk |
 
 ## 三、方案归档（docs/proven/）

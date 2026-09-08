@@ -9,15 +9,15 @@
 
 ## 锚点
 
-- **锚定的目标**：D11 重构为「附着用户浏览器 + 人机共存」形态（PRD 回指 D11）
-  - 生死门：S001 附着通道可行性研究先行，证伪则告警退出（无兜底形态）
-  - 范围：全量手写源码；移除 spawn 家族（agentChrome 整文件删重写发现机制、taskIsolation 删、x-monitor 随改）
-  - 铁律：专属 tab + 显式授权；空态如实报 + 一次性引导；先补测试网再动结构
+- **锚定的目标**：0.3.0 封版 + 文档账实对齐（2026-09-08 立项）
+  - 依据：第三方（codex 经 herdr 委托）封版评审：无代码级阻断，3 项元数据阻塞（版本号/lockfile、README 安装示例、CHANGELOG 封版）
+  - 顺带：97 至 94 站口径统一、.oma 入 gitignore、六处文档滞后清理（INDEX/PRD D13/GOAL 锚点/ROADMAP/TODO）
 
 ### 推进时间线
 
 | 日期 | 进展 |
 | --- | --- |
+| 2026-09-08 | 第三方封版评审（codex reviewer）：四项关键修复确认落地、74 用例全绿；3 项元数据阻塞当日修复，tag v0.3.0 |
 | 2026-09-05 | D11 架构落地：S001 生死门通过（Chrome 144+ 官方 auto-connect 通道 + 本机 PoC 全链路 + 不抢焦点实证）-> 测试网 48 用例全绿 -> 移除 spawn 家族（agentChrome/taskIsolation/locks、bh chrome 与 chrome-mode）-> 附着发现（补 Chrome Dev/Beta、排除 Edge）+ 专属 tab 铁律 + x-monitor 改造 -> 真机附着冒烟（doctor attachable/current_tab 专属 tab/sessions 全景）；文档基线同步 README/SKILL/R001/CHANGELOG |
 | 2026-09-05 | D11 立项：三轮拷问定共识（架构转向、彻底移除 spawn、专属 tab 铁律、用户自开为主、证伪即告警退出）；S001 研究启动 |
 | 2026-09-04 | D10 x-monitor 关闭原语：stop|close 按序拆栈（supervisor -> worker -> 专属 daemon），start 显式化；空态幂等与按序停止均实测 |
@@ -32,16 +32,14 @@
 
 ## 进程
 
-- D26 GitHub #1/#2 已修并关单（close_tab 认领马标记；fill_input 回读；eval 超时提示）
-- D11 触发版复验已闭环（x.com 标题徽章 14s 内收割 +9，库存 1012）
-- D25 super-ocr 已交付（扫描定位 + PaddleOCR；fixture K8M2）
-- D22/D23/D24 已交付（bing G002、x-intel 合约、极限测试）
+- 0.3.0 封版推进中（评审结论与修复清单见锚点；D13 已补记已交付）
 
 ## 历史
 
 | 日期 | 目标 | 结果 |
 | --- | --- | --- |
-| 2026-09-07 | D11 触发版复验 | 达成：x.com/home 标题 `(1)`，x-intel 启动 14s 内收割入库 +9（1003→1012），非 5min 兜底 |
+| 2026-09-08 | 0.3.0 封版 + 文档账实对齐 | 达成：第三方评审无代码级阻断；3 项元数据阻塞修复（版本号两文件、README 示例、CHANGELOG 封版）；tag v0.3.0 |
+| 2026-09-07 | D11 触发版复验 | 达成：x.com/home 标题 `(1)`，x-intel 启动 14s 内收割入库 +9（1003 至 1012），非 5min 兜底 |
 | 2026-09-07 | D25 super-ocr 验证码图识别 | 达成：扫描当前页定位验证码图 + ppu-paddle-ocr；fixture 识别 K8M2；交互式拼图 CAPTCHA\|WALL |
 | 2026-09-07 | D22 bing-search G002 | 达成：__bs + bs_search；实搜 5 条 title 非空 |
 | 2026-09-07 | D23 x-intel search/harvest 合约 | 达成：固定形 JSON；stats 604 帖 |
