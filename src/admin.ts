@@ -544,19 +544,23 @@ export type UpgradeState = {
   drift: DaemonDrift[];
   xIntelRunning: boolean;
   dashboardAlive: boolean;
+  /** drifted named daemons other than default/x-intel (e.g. page-detect) */
+  namedDaemons: string[];
 };
 
 /**
  * Ordered rollout plan (pure, unit-tested): stacks stop top-down so nothing
- * re-pulls mid-swap, the default daemon is reborn (companions re-pull with
- * fresh code, user-stopped states are respected), the dashboard is swapped,
- * and whatever was running comes back.
+ * re-pulls mid-swap, every drifted daemon is reborn (companions respawn only
+ * ATTACHES to an alive named daemon — it never swaps code, so each named
+ * daemon gets an explicit restart), the dashboard is swapped, and whatever
+ * was running comes back.
  */
 export function upgradePlan(s: UpgradeState): string[] {
   const steps: string[] = [];
   if (s.xIntelRunning) steps.push('x-intel stop（按序拆栈：先写 stopped 防 supervisor 重拉，再停 worker 与专属 daemon）');
   steps.push('停 companions 会话（page-detect watch / supervisor-core；用户 stopped 状态尊重不拉）');
   steps.push('default daemon 重生（POST /quit + ensureDaemon；companions 幂等重拉到新版）');
+  for (const n of s.namedDaemons) steps.push(`${n} daemon 重生（companions 只附着已活 daemon 不换代码，须显式重启）`);
   if (s.dashboardAlive) steps.push('dashboard stop + 起新（页面版本握手自动重载）');
   if (s.xIntelRunning) steps.push('x-intel start（worker 复活，收割继续）');
   steps.push('终验：全部 daemon health.version 对版、看板 200');

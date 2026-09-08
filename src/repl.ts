@@ -18,6 +18,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { envNumber } from './env.js';
 import { fileURLToPath } from 'node:url';
 import { Session, listPageTargets, resolveWsUrl, detectBrowsers } from './session.js';
 import * as Generated from './generated.js';
@@ -176,6 +177,21 @@ const server = createServer(async (req, res) => {
           () => { if (evalInFlight === work) evalInFlight = null; },
           () => { if (evalInFlight === work) evalInFlight = null; },
         );
+        // Zombie reaping (D31): a snippet that outlives its client timeout
+        // AND never settles used to latch the single-flight slot forever
+        // (a resident watcher would go 429-dead until a manual restart).
+        // Every eval gets a ceiling — callers that omit ?timeout= (remote
+        // probes) inherit the CLI default instead of running ungoverned.
+        // After a grace period past it, orphan the work: the slot frees for
+        // new evals while the orphan's remaining CDP calls each carry their
+        // own short timeout and drain on their own.
+        const capS = timeoutS > 0 ? timeoutS : envNumber('BH_EVAL_TIMEOUT', 300);
+        setTimeout(() => {
+          if (evalInFlight === work) {
+            evalInFlight = null;
+            process.stderr.write(`bh: reaped a zombie eval (no settle ${capS}s past ceiling); single-flight slot freed\n`);
+          }
+        }, capS * 1000 + Math.max(30_000, capS * 500));
         const result = timeoutS > 0
           ? await Promise.race([
               work,

@@ -82,8 +82,8 @@ bh --version           # 验证：应输出 package.json 里的版本号
 从 [Releases](https://github.com/raystyle/browser-harness/releases) 下载 `browser-harness-ts-<版本>.tgz` 附件后：
 
 ```bash
-npm install -g ./browser-harness-ts-0.4.1.tgz
-bh --version   # -> 0.4.1
+npm install -g ./browser-harness-ts-0.4.3.tgz
+bh --version   # -> 0.4.3
 ```
 
 ### 方式三：开发模式（源码直跑）
@@ -156,7 +156,7 @@ bh skill sync --yes
 或者把下面这段直接粘给你的 agent，它会装好 CLI 并执行第一个任务：
 
 ```
-Run: 从 https://github.com/raystyle/browser-harness/releases 下载 browser-harness-ts-0.4.1.tgz，`npm install -g ./browser-harness-ts-0.4.1.tgz`，确认 `bh --status` 可用，然后用
+Run: 从 https://github.com/raystyle/browser-harness/releases 下载 browser-harness-ts-0.4.3.tgz，`npm install -g ./browser-harness-ts-0.4.3.tgz`，确认 `bh --status` 可用，然后用
 browser 技能驱动我的浏览器：查看我打开的所有标签页，按主题分组，
 并截取最有意思的一个的截图。
 ```

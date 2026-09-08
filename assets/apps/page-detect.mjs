@@ -104,6 +104,12 @@ function classify(p, url) {
 }
 
 /** Attach -> Runtime.enable -> evaluate one JSON probe. Caller detaches. */
+// D31 self-heal bookkeeping: consecutive "eval busy" means the daemon's
+// single-flight slot is latched; the watch loop restarts OUR named daemon
+// after 2 in a row (the daemon's zombie-reaper is the primary fix; this is
+// the belt that also covers older daemons).
+let busyStreak = 0;
+
 async function probeTab(h, targetId) {
   try {
     const r = await h.cdp('Target.attachToTarget', { targetId, flatten: true });
@@ -120,9 +126,12 @@ async function probeTab(h, targetId) {
       returnByValue: true,
     }, { sessionId: r.sessionId });
     const p = JSON.parse(out?.result?.value || '{}');
+    busyStreak = 0;
     return { sid: r.sessionId, p: { len: p.len || 0, head: p.head || '', title: p.title || '', assets: p.assets || [] } };
   } catch (err) {
-    logLine(`[${hms()}] page-detect 探测失败：${String(targetId).slice(0, 24)} ${err?.message ?? err}`);
+    const msg = String(err?.message ?? err);
+    busyStreak = /eval busy|429/.test(msg) ? busyStreak + 1 : 0;
+    logLine(`[${hms()}] page-detect 探测失败：${String(targetId).slice(0, 24)} ${msg}`);
     return null;
   }
 }
@@ -203,6 +212,18 @@ async function watchLoop(h, intervalSec) {
         logLine(`[${hms()}] page-detect 巡检：${rows.length} 页 · 异常 ${bad}`);
       }
     } catch { /* browser detached/daemon gone: keep the loop, retry next tick */ }
+    // D31 self-heal: a latched single-flight slot shows up as consecutive
+    // "eval busy" probe failures. Restart OUR named daemon to clear it — the
+    // probes re-attach on the next tick (same port, fresh registry record).
+    if (busyStreak >= 2) {
+      busyStreak = 0;
+      logLine(`[${hms()}] page-detect 自愈：连续 eval busy，重启 page-detect daemon 清单飞锁`);
+      try {
+        const { spawnSync } = await import('node:child_process');
+        spawnSync(process.execPath, [process.argv[1], '--name', 'page-detect', '--restart', '--yes'],
+          { stdio: 'ignore', windowsHide: true, timeout: 60_000 });
+      } catch { /* next streak retries */ }
+    }
     await new Promise(r => setTimeout(r, intervalSec * 1000));
   }
 }

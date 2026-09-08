@@ -2,6 +2,11 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.4.3] - 2026-09-08
+
+- **单飞锁僵尸清算（D31）**：挂起且不结算的 eval 此前会闩死 daemon 单飞锁，守护类应用（page-detect watch）随之 429 瘫痪到人工重启。两层修复：daemon 侧每个 eval 都有清算上限（客户端 `?timeout=` 或默认 `BH_EVAL_TIMEOUT` 300s；超时未结算，过宽限期后单飞槽自动释放，孤儿 snippet 的残余 CDP 调用各自带短超时自然排干）；page-detect watch 连续 2 次 `eval busy` 自动重启自身 named daemon 清锁（兜底旧版 daemon）。实机验证：`await new Promise(()=>{})` 挂锁 504 后约 36 秒新 eval 恢复正常
+- **upgrade 补 named daemon 步**：companions 重拉只附着已活 daemon 不换代码，page-detect 这类 named daemon 须显式重启；upgradePlan 增该步（附单测），漂移终验实机抓出该盲区后修复；x-intel 终验改轮询重试（start 返回时 daemon 尚在附着）
+
 ## [0.4.1] - 2026-09-08
 
 - **升级轮换原语 `bh upgrade`（D30）**：守护进程版本漂移检测自动化：任何 bh 命令启动时轻量比对 `/health` 自报 version（缺字段视为 pre-0.4.0 老版），漂移则 stderr 提示一行；轮换显式执行：默认 dry-run 打印五步滚动计划，`--yes` 执行（x-intel 按序拆栈、companions 停、default daemon 重生、dashboard 换新、x-intel 恢复），spawn 子进程复用既有 stop/start 语义，用户 stopped 状态尊重不拉，终验 health.version 全对版 + 看板 200。包源三态：默认查 GitHub Release 最新版（不高于本地绝不降级，查询失败离线降级为滚动本地）；`--from <tgz|URL>` 显式源（URL 自动下载；安装经后台引导进程在本进程退出后执行，规避 Windows 运行中 dist 文件锁，装完自动续跑滚动）；`--offline` 跳过 Release 查询

@@ -590,7 +590,8 @@ function buildProgram(): Command {
         } catch { return false; }
       })();
       const dashboardAlive = await alive(`http://127.0.0.1:${DASHBOARD_PORT}`);
-      const plan = admin.upgradePlan({ drift, xIntelRunning, dashboardAlive });
+      const namedDaemons = drift.map(d => d.name).filter(n => n !== 'default' && n !== 'x-intel');
+      const plan = admin.upgradePlan({ drift, xIntelRunning, dashboardAlive, namedDaemons });
       console.log(`检测到漂移：${drift.map(d => `${d.name}(${d.version ?? 'pre-0.4.0'})`).join(' ')} -> ${admin.selfVersion()}`);
       if (!guardWrite(`滚动 ${plan.length - 1} 步`, { yes: opts.yes, dryRun: opts.dryRun })) {
         plan.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
@@ -619,12 +620,19 @@ function buildProgram(): Command {
         await rmux.killSession('supervisor-core').catch(() => {});
       });
       await step(n++, 'default daemon 重生', () => run(['--restart', '--yes']));
+      // Companions respawn only ATTACHES to an alive named daemon (never
+      // swaps its code) — every drifted named daemon restarts explicitly.
+      for (const name of namedDaemons) {
+        await step(n++, `${name} daemon 重生`, () => run(['--name', name, '--restart', '--yes']));
+      }
       if (dashboardAlive) await step(n++, 'dashboard 换新', async () => {
         await run(['dashboard', 'stop']);
         await run(['dashboard']);
       });
       if (xIntelRunning) await step(n++, 'x-intel start', () => run(['x-intel', 'start']));
       // Final check: drift must be gone and what was running must be back.
+      // x-intel daemons come up ASYNC (browser attach can take a while after
+      // `x-intel start` returns) — poll it instead of a one-shot probe.
       process.stdout.write('  终验 ... ');
       const after = await admin.daemonVersionDrift();
       const dashOk = !dashboardAlive || await alive(`http://127.0.0.1:${DASHBOARD_PORT}`);
@@ -633,8 +641,12 @@ function buildProgram(): Command {
           const { readInstanceRecord } = await import('./paths.js');
           const rec = readInstanceRecord('x-intel');
           if (!rec) return false;
-          const h = await admin.health(rec.port, 1000);
-          return h?.ok === true;
+          for (let i = 0; i < 12; i++) {
+            const h = await admin.health(rec.port, 1000);
+            if (h?.ok === true) return true;
+            await sleep(2000);
+          }
+          return false;
         } catch { return false; }
       })();
       if (after.length > 0 || !dashOk || !xOk) {
