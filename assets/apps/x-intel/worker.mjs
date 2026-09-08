@@ -36,7 +36,8 @@ function writeStatus(st) {
 }
 const DB_PATH = process.env.X_DB ?? path.join(DATA, 'x_tweets.db');
 
-const sleep = (s) => new Promise(r => setTimeout(r * 1 || r, s * 1000));
+/** @param {number} s */
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
 
 // --- page-side extraction (verbatim selectors from the Python original) ----
 
@@ -359,11 +360,11 @@ async function main() {
       lastRoundAt = Date.now();
       }
     } catch (e) {
-      wlog(`x-intel::x-monitor 刷新失败：${e?.message ?? e}\n${String(e?.stack ?? '').split('\n').slice(1, 4).join('\n')}`);
+      wlog(`x-intel::x-monitor 刷新失败：${e instanceof Error ? e.message : String(e)}\n${e instanceof Error ? String(e.stack ?? '').split('\n').slice(1, 4).join('\n') : ''}`);
       writeStatus({
         state: 'degraded',
         metrics: [],
-        event: { ts: new Date().toISOString(), text: `刷新失败：${String(e?.message ?? e).slice(0, 60)}` },
+        event: { ts: new Date().toISOString(), text: `刷新失败：${(e instanceof Error ? e.message : String(e)).slice(0, 60)}` },
       });
       // Self-heal the daemon as well: a dead daemon starves every round, but
       // the heartbeat keeps ticking so the supervisor cannot see this failure.

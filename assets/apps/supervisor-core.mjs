@@ -173,7 +173,7 @@ export async function main(argv = [], ctx) {
         }
       }
     } catch (err) {
-      logLine(`巡检异常：${err?.message ?? err}`);
+      logLine(`巡检异常：${err instanceof Error ? err.message : String(err)}`);
     }
 
     const metrics = [

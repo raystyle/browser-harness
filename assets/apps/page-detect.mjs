@@ -129,7 +129,7 @@ async function probeTab(h, targetId) {
     busyStreak = 0;
     return { sid: r.sessionId, p: { len: p.len || 0, head: p.head || '', title: p.title || '', assets: p.assets || [] } };
   } catch (err) {
-    const msg = String(err?.message ?? err);
+    const msg = err instanceof Error ? err.message : String(err);
     busyStreak = /eval busy|429/.test(msg) ? busyStreak + 1 : 0;
     logLine(`[${hms()}] page-detect 探测失败：${String(targetId).slice(0, 24)} ${msg}`);
     return null;
@@ -142,7 +142,7 @@ function saveState(state) {
 
 /** The resident loop (runs inside its own detached CLI process). Never returns. */
 async function watchLoop(h, intervalSec) {
-  const state = { ts: '', watching: true, interval: intervalSec, tabs: [], alerts: [] };
+  const state = /** @type {{ts: string, watching: boolean, interval: number, tabs: any[], alerts: any[]}} */ ({ ts: '', watching: true, interval: intervalSec, tabs: [], alerts: [] });
   const prev = new Map();
   const blankStreak = new Map();
   let lastSweepLog = 0;
@@ -158,7 +158,7 @@ async function watchLoop(h, intervalSec) {
       saveState(state);
       const tabs = (await h.list_tabs(false)).filter(t => /^https?:/i.test(t.url) && !isDashboardUrl(t.url));
       const rows = [];
-      let prevSid = null;
+      let prevSid = /** @type {any} */ (null);
       for (const t of tabs) {
         if (prevSid) { await h.cdp('Target.detachFromTarget', { sessionId: prevSid }).catch(() => {}); prevSid = null; }
         const pr = await probeTab(h, t.targetId);
@@ -220,7 +220,7 @@ async function watchLoop(h, intervalSec) {
       logLine(`[${hms()}] page-detect 自愈：连续 eval busy，重启 page-detect daemon 清单飞锁`);
       try {
         const { spawnSync } = await import('node:child_process');
-        spawnSync(process.execPath, [process.argv[1], '--name', 'page-detect', '--restart', '--yes'],
+        spawnSync(process.execPath, [process.argv[1] ?? '', '--name', 'page-detect', '--restart', '--yes'],
           { stdio: 'ignore', windowsHide: true, timeout: 60_000 });
       } catch { /* next streak retries */ }
     }
@@ -284,7 +284,7 @@ async function watchStart(intervalSec) {
   try {
     const pid = Number(readFileSync(PID_FILE(), 'utf8'));
     if (pid && process.kill(pid, 0)) {
-      let running = null;
+      let running = /** @type {any} */ (null);
       try { running = JSON.parse(readFileSync(STATE_FILE(), 'utf8')).interval ?? null; } catch { /* no state yet */ }
       if (running === null || running === intervalSec) {
         console.log(JSON.stringify({ _ok: true, _v: VERSION, _ts: new Date().toISOString(), watching: true, pid, interval: running ?? intervalSec, note: 'already running' }, null, 1));
@@ -293,9 +293,9 @@ async function watchStart(intervalSec) {
       try { process.kill(pid); } catch { /* already gone */ } // respawn below at the requested cadence
     }
   } catch { /* not running */ }
-  const child = spawn(process.execPath, [process.argv[1], '--name', 'page-detect', 'page-detect', 'watch', '--watch-loop', '--interval', String(intervalSec)], {
+  const child = /** @type {import('node:child_process').ChildProcess} */ (spawn(process.execPath, [process.argv[1] ?? '', '--name', 'page-detect', 'page-detect', 'watch', '--watch-loop', '--interval', String(intervalSec)], {
     detached: true, stdio: 'ignore',
-  });
+  }));
   child.unref();
   try { mkdirSync(dataDirOf(), { recursive: true }); writeFileSync(PID_FILE(), String(child.pid)); } catch { /* best-effort */ }
   console.log(JSON.stringify({ _ok: true, _v: VERSION, _ts: new Date().toISOString(), watching: true, pid: child.pid, via, interval: intervalSec }, null, 1));
@@ -353,7 +353,7 @@ export async function main(argv = [], ctx) {
   const want = sub;
 
   // 1. resolve the target tab among what's already open (attach primitive)
-  let tab = null;
+  let tab = /** @type {any} */ (null);
   if (want) {
     const tabs = await h.list_tabs();
     tab = tabs.find(t => t.url.includes(want));

@@ -117,7 +117,7 @@ async function loadEngine() {
   return import(pathToFileURL(entry).href);
 }
 
-let _svc = null;
+let _svc = /** @type {any} */ (null);
 async function getService() {
   if (_svc) return _svc;
   const mod = await loadEngine();
@@ -201,7 +201,7 @@ async function injectSdk(h, sdk) {
   }
   const t0 = Date.now();
   while (Date.now() - t0 < 8_000) {
-    let r = null;
+    let r = /** @type {any} */ (null);
     try { r = await h.js('__ocr && __ocr.ready()'); } catch { /* transient */ }
     if (r && typeof r._ok === 'boolean') return check(r);
     await new Promise(res => setTimeout(res, 250));
@@ -229,7 +229,7 @@ async function cropCandidate(h, c, save) {
   const tmp = path.join(bhHome(), 'tmp', `ocr-${c.id}.png`);
   const dest = save ? path.join(cacheDir(), `${c.id}-${Date.now()}.png`) : tmp;
   let via = 'clip';
-  let exp = null;
+  let exp = /** @type {any} */ (null);
   try { exp = await h.js(`__ocr.export(${JSON.stringify(c.id)})`); } catch { /* fall through */ }
   if (exp && exp._ok && exp.data) {
     mkdirSync(path.dirname(dest), { recursive: true });
@@ -258,12 +258,12 @@ async function recognizeOne(svc, file) {
 async function readyCmd(ctx) {
   let engine = false;
   let engine_dir = findEngineRoot();
-  let engine_error = null;
+  let engine_error = /** @type {any} */ (null);
   if (engine_dir) {
     try { await getService(); engine = true; }
-    catch (e) { engine_error = String(e?.message ?? e); }
+    catch (e) { engine_error = (e instanceof Error ? e.message : String(e)); }
   }
-  let page = null;
+  let page = /** @type {any} */ (null);
   try {
     const h = ctx.helpers;
     if (!existsSync(SDK_FILE)) throw new Error('NOT_FOUND: sdk/ocr.min.js missing — run npm run build:sdk');
@@ -272,7 +272,7 @@ async function readyCmd(ctx) {
     const r = await injectSdk(h, sdk);
     page = { url: r.url || cur.url, title: r.title || cur.title, ready: r.ready, interactive: r.interactive || null };
   } catch (e) {
-    page = { error: String(e?.message ?? e) };
+    page = { error: (e instanceof Error ? e.message : String(e)) };
   }
   emit({
     _ok: true, _v: VERSION, _ts: nowIso(),
@@ -315,10 +315,10 @@ async function scan(ctx, argv, locateOnly) {
     );
   }
 
-  let svc = null;
+  let svc = /** @type {any} */ (null);
   if (candidates.length) {
     try { svc = await getService(); }
-    catch (e) { return failJson(String(e?.message ?? e), exitOf(String(e?.message ?? e))); }
+    catch (e) { return failJson((e instanceof Error ? e.message : String(e)), exitOf((e instanceof Error ? e.message : String(e)))); }
   }
 
   const items = [];
@@ -335,7 +335,7 @@ async function scan(ctx, argv, locateOnly) {
       row.confidence = ocr.confidence;
       if (!save) { try { rmSync(crop.path); } catch { /* tmp */ } }
     } catch (e) {
-      row.error = String(e?.message ?? e);
+      row.error = (e instanceof Error ? e.message : String(e));
     }
     items.push(row);
   }
@@ -358,7 +358,7 @@ export async function main(argv = [], ctx) {
     if (cmd === 'help' || cmd === '-h' || cmd === '--help') return fail(USAGE, 2);
     return await scan(ctx, argv, false);
   } catch (e) {
-    const msg = String(e?.message ?? e);
+    const msg = (e instanceof Error ? e.message : String(e));
     return failJson(msg, exitOf(msg));
   }
 }

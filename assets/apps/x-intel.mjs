@@ -112,7 +112,7 @@ export async function main(argv = [], ctx) {
     console.log('x-intel running (worker in rmux session "x-monitor"; supervisor-core heals it; db at <BH_HOME>/data/x_tweets.db)');
     return 0;
   } catch (e) {
-    process.stderr.write(`bh: x-intel failed: ${e?.message ?? e}\n`);
+    process.stderr.write(`bh: x-intel failed: ${e instanceof Error ? e.message : String(e)}\n`);
     return 1;
   }
 }

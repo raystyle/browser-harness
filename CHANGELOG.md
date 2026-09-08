@@ -2,6 +2,10 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.4.5] - 2026-09-08
+
+- **apps 层类型护栏（D32）**：新增 `tsconfig.apps.json`（allowJs + checkJs + noEmit，strict 继承、隐式 any 渐进后置）纳管 assets/apps 全部 .mjs 的类型检查，`npm test` 前置执行（`typecheck:apps`）；分发模型零变化（apps 仍是纯 .mjs 原样铺装）。清 41 处真错误（空值/属性访问/参数匹配）：null 初始化容器 JSDoc cast、catch 变量 instanceof 收窄、`process.argv[1]` 兜底、spawn 返回 cast；顺带清掉 worker `setTimeout(r*1||r)` 的 NaN 把戏（行为等价改直写）。两步契约模板（bing/google/medium/cookie-io）入口与工具函数补 JSDoc 形参类型
+
 ## [0.4.3] - 2026-09-08
 
 - **单飞锁僵尸清算（D31）**：挂起且不结算的 eval 此前会闩死 daemon 单飞锁，守护类应用（page-detect watch）随之 429 瘫痪到人工重启。两层修复：daemon 侧每个 eval 都有清算上限（客户端 `?timeout=` 或默认 `BH_EVAL_TIMEOUT` 300s；超时未结算，过宽限期后单飞槽自动释放，孤儿 snippet 的残余 CDP 调用各自带短超时自然排干）；page-detect watch 连续 2 次 `eval busy` 自动重启自身 named daemon 清锁（兜底旧版 daemon）。实机验证：`await new Promise(()=>{})` 挂锁 504 后约 36 秒新 eval 恢复正常

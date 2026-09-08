@@ -29,8 +29,12 @@ const MAX_BATCH = 100;
 export const description = '通过浏览器执行必应搜索，结果落盘供分页取用。';
 const USAGE = 'bh: usage: bh bing-search <query> [--top N] [--page N] | bh bing-search pluck [cache] | bh bing-search ready';
 
+/** @param {string} msg @param {number} [code] */
+/** @param {string} msg @param {number} [code] */
 function fail(msg, code = 1) { process.stderr.write(`bh: ${msg}\n`); return code; }
 
+/** @param {{_ok?: boolean, _v?: string, _ts?: string, error?: string} | null | undefined} r */
+/** @param {Record<string, any> | null | undefined} r */
 function check(r) {
   if (r === null || r === undefined) throw new Error('SDK returned null — session may be disconnected; retry the command');
   if (typeof r._ok !== 'boolean' || typeof r._v !== 'string' || typeof r._ts !== 'string') {
@@ -40,6 +44,8 @@ function check(r) {
   return r;
 }
 
+/** @param {string} cache @param {unknown[]} data @param {string} sdkV */
+/** @param {string} cache @param {any[]} data @param {string} sdkV */
 function stash(cache, data, sdkV) {
   mkdirSync(CACHE_DIR, { recursive: true });
   const file = path.join(CACHE_DIR, `${cache}.json`);
@@ -60,6 +66,8 @@ function stash(cache, data, sdkV) {
   };
 }
 
+/** @param {string} cache */
+/** @param {string} cache */
 function pluck(cache) {
   const file = path.join(CACHE_DIR, `${cache}.json`);
   if (!existsSync(file)) throw new Error(`bing-search: no cache '${cache}' — run a search first`);
@@ -69,11 +77,13 @@ function pluck(cache) {
 
 const SDK_FILE = fileURLToPath(new URL('../sdk/bing.min.js', import.meta.url));
 
+/** @param {string[]} [argv] @param {{helpers: any, browserHelpers: any}} ctx */
+/** @param {string[]} argv @param {{helpers: any, browserHelpers: any}} ctx */
 export async function main(argv = [], ctx) {
   const pos = argv.filter(a => !a.startsWith('-'));
   const [cmd, arg] = pos;
 
-  if (cmd === 'pluck') { try { pluck(arg || 'bs_search'); return 0; } catch (e) { return fail(e.message); } }
+  if (cmd === 'pluck') { try { pluck(arg || 'bs_search'); return 0; } catch (e) { return fail((e instanceof Error ? e.message : String(e))); } }
 
   const h = ctx.helpers;
   const sdk = readFileSync(SDK_FILE, 'utf8');
@@ -93,11 +103,11 @@ export async function main(argv = [], ctx) {
   const t0 = Date.now();
   let out;
   while (Date.now() - t0 < 20_000) {
-    let r = null;
+    let r = /** @type {Record<string, any> | null} */ (null);
     try { r = await h.js(`__bs.results(${top})`); } catch { /* mid-navigation blip */ }
     if (r && typeof r._ok === 'boolean') {
       try { out = check(r); } catch (e) {
-        const msg = String(e?.message ?? e);
+        const msg = (e instanceof Error ? e.message : String(e));
         if (/^CAPTCHA\|WALL:/.test(msg)) return fail(msg, 2);
         throw e;
       }

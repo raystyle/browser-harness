@@ -27,7 +27,7 @@
 
 - TypeScript ESM；**运行时依赖白名单制**（现役仅 commander 与 zod，D29）：白名单外新增 runtime 依赖必须走 PRD 采纳，devDependencies 从宽
 - `src/generated.ts` 是 `scripts/gen.ts` 从 `protocol/*.json` 生成的产物，**禁止手改**；协议升级后 `npm run gen` 再生成
-- 测试用 `node:test`（`npm test` = build + `node --test "dist/*.test.js"`）；Windows git-bash 下 glob 必须带引号（见 M002）
+- 测试用 `node:test`（`npm test` = build + `typecheck:apps`（apps .mjs 的 checkJs 类型检查，D32）+ `node --test "dist/*.test.js"`）；Windows git-bash 下 glob 必须带引号（见 M002）
 - 新的 CDP 使用配方落 `skill/interaction-skills/`，纯 CDP 调用格式、一文件一机制
 - 行为基线变化同步 README 与 `skill/SKILL.md`
 
