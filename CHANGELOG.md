@@ -2,8 +2,9 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
-## [Unreleased]
+## [0.4.0] - 2026-09-08
 
+- **CLI 工程化（D29）**：引入 Commander（结构化命令解析）与 Zod（环境变量与写操作选项校验）两个运行时依赖，零运行时依赖承诺改为白名单制（AGENTS/README/SKILL 同步）；裸 JS 片段与插件路由保持原直通路径（agent/插件合约零变化）；用法错误退出码统一为 2（G002 退出码表：0 成功 / 1 失败 / 2 用法 / 3 NOT_FOUND）；写操作默认只读：`bh --restart` 与 `bh skill sync` 不带 `--yes` 只打印计划（dry-run 语义），`--yes` 才执行（R001/README 步骤同步）；`--help` 升级为 Commander 标准帮助
 - **TypeScript 7 升级与编译配置对齐（D28）**：devDependencies typescript 5.9.3 升 7.0.2（原生编译器），零错误直过；tsconfig 增量严格开关 `exactOptionalPropertyTypes`（清 12 处「可选属性赋 undefined」：接口侧显式 `| undefined` 联合 + fetch signal 条件展开 + rmux version 条件展开）、`noImplicitOverride`、`isolatedModules`、`incremental`（tsbuildinfo 入 gitignore）；`strict` 与 `noUncheckedIndexedAccess` 原有。module 保持 NodeNext（纯 Node ESM 库正解，preserve/bundler 为打包器场景不采纳）；74 用例全绿
 
 ## [0.3.1] - 2026-09-08

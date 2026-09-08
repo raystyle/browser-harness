@@ -5,7 +5,7 @@
 ## 一、项目定位
 
 1. **本质**：从 LLM 到 Chrome 的完整操控平台。[browser-use/browser-harness-js](https://github.com/browser-use/browser-harness-js)（Bun 运行时）的 Node/TypeScript 忠实移植，平台能力对齐 Python 主仓 [browser-harness-py](https://github.com/raystyle/browser-harness-py)。两层 API 一条守护进程：协议层（CDP 56 域 652 方法带类型直调，无封装遮蔽）+ 语义层（Python 同名 snake_case 助手，domain-skills 94 站资产原样可用）。
-2. **边界**：做：协议直调、语义助手、daemon 持久会话、agent 专属 Chrome（继承老栈登录态）、插件应用、录制与视频、任务级浏览器隔离、技能分发。不做：MCP 桥接、Python 仓的文档治理子系统、上游没有的新功能（忠实移植原则：不加新功能、保留原版行为）。质量承诺：零运行时依赖（Node ≥22 内置 WebSocket/fetch/sqlite）、npm 三平台分发、全方法带类型。
+2. **边界**：做：协议直调、语义助手、daemon 持久会话、agent 专属 Chrome（继承老栈登录态）、插件应用、录制与视频、任务级浏览器隔离、技能分发。不做：MCP 桥接、Python 仓的文档治理子系统、上游没有的新功能（忠实移植原则：不加新功能、保留原版行为）。质量承诺：**运行时依赖白名单制**（D29 起仅 `commander`（CLI 解析）与 `zod`（环境变量与选项校验）两项，新增须走 PRD 采纳；其余全部 Node ≥22 内置 WebSocket/fetch/sqlite/child_process）、npm 三平台分发、全方法带类型。
 3. **交互对象**：agent（`bh` CLI + `browser` 技能，装到 `~/.claude/skills/browser/`）；Node 程序（npm 库入口 `dist/session.js`）；人（`bh doctor` 诊断面）。
 
 ## 二、工作规则
@@ -25,7 +25,7 @@
 
 ### 编码
 
-- TypeScript ESM；**零运行时依赖**：新增 runtime 依赖必须走 PRD 采纳，devDependencies 从宽
+- TypeScript ESM；**运行时依赖白名单制**（现役仅 commander 与 zod，D29）：白名单外新增 runtime 依赖必须走 PRD 采纳，devDependencies 从宽
 - `src/generated.ts` 是 `scripts/gen.ts` 从 `protocol/*.json` 生成的产物，**禁止手改**；协议升级后 `npm run gen` 再生成
 - 测试用 `node:test`（`npm test` = build + `node --test "dist/*.test.js"`）；Windows git-bash 下 glob 必须带引号（见 M002）
 - 新的 CDP 使用配方落 `skill/interaction-skills/`，纯 CDP 调用格式、一文件一机制

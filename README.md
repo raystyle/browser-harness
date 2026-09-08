@@ -5,7 +5,7 @@
 1. **协议层**："协议即 API"，CDP 全部 56 域 652 方法带类型直调，无封装遮蔽（源自 [browser-use/browser-harness-js](https://github.com/browser-use/browser-harness-js) 的忠实移植）
 2. **语义层**：[browser-harness-py](https://github.com/raystyle/browser-harness-py)（Python 版）同名 snake_case 助手，tab 纪律、等待判官、登录墙策略、自愈；94 站 domain-skills 知识库即插即用
 
-**零运行时依赖**（Node ≥22 内置 WebSocket/fetch/sqlite）；长驻 daemon 持久会话；**附着用户自己打开的浏览器、人机共存**（永不 spawn，只在专属 tab 工作，Chrome 144+ 官方 auto-connect 通道）；插件应用生态（web-fetch / 搜索 / cookie-io / page-detect 页面诊断 / super-ocr 验证码图识别 / x-intel X 监控全家桶）；只读网页看板；每动作一帧录制 + 视频合成。
+**运行时依赖白名单制**（仅 commander 与 zod 两项，其余全用 Node ≥22 内置 WebSocket/fetch/sqlite）；长驻 daemon 持久会话；**附着用户自己打开的浏览器、人机共存**（永不 spawn，只在专属 tab 工作，Chrome 144+ 官方 auto-connect 通道）；插件应用生态（web-fetch / 搜索 / cookie-io / page-detect 页面诊断 / super-ocr 验证码图识别 / x-intel X 监控全家桶）；只读网页看板；每动作一帧录制 + 视频合成。
 
 ## 能力矩阵
 
@@ -81,8 +81,8 @@ bh --version           # 验证：应输出 package.json 里的版本号
 从 [Releases](https://github.com/raystyle/browser-harness/releases) 下载 `browser-harness-ts-<版本>.tgz` 附件后：
 
 ```bash
-npm install -g ./browser-harness-ts-0.3.0.tgz
-bh --version   # -> 0.3.0
+npm install -g ./browser-harness-ts-0.4.0.tgz
+bh --version   # -> 0.4.0
 ```
 
 ### 方式三：开发模式（源码直跑）
@@ -111,7 +111,7 @@ Windows 上 npm 自动创建 `.cmd`/`.ps1`/sh 三种 shim，cmd、PowerShell、g
 手动铺装应用与站点知识（也可跳过，首次调用自动铺）：
 
 ```bash
-bh skill sync           # 铺装 workspace（apps + domain-skills + sdk，只增不删）
+bh skill sync --yes      # 铺装 workspace（apps + domain-skills + sdk，只增不删；默认 dry-run，--yes 执行）
 bh doctor               # 体检：可附着浏览器 / daemon / 资产一致性
 ```
 
@@ -147,7 +147,7 @@ bh 永不启动浏览器，它附着你自己打开的 Chrome（144+）：
 安装后一键同步技能到 Claude Code 与 Codex：
 
 ```bash
-bh skill sync
+bh skill sync --yes
 ```
 
 （手动路径：把 `skill/` 目录复制进 `~/.claude/skills/browser/`，技能名 `browser`。）
@@ -155,7 +155,7 @@ bh skill sync
 或者把下面这段直接粘给你的 agent，它会装好 CLI 并执行第一个任务：
 
 ```
-Run: 从 https://github.com/raystyle/browser-harness/releases 下载 browser-harness-ts-0.3.0.tgz，`npm install -g ./browser-harness-ts-0.3.0.tgz`，确认 `bh --status` 可用，然后用
+Run: 从 https://github.com/raystyle/browser-harness/releases 下载 browser-harness-ts-0.4.0.tgz，`npm install -g ./browser-harness-ts-0.4.0.tgz`，确认 `bh --status` 可用，然后用
 browser 技能驱动我的浏览器：查看我打开的所有标签页，按主题分组，
 并截取最有意思的一个的截图。
 ```

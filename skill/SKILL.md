@@ -8,7 +8,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 > 本文是**总览 + 意图路由**：按意图找到入口，再按渐进层级下钻细节。
 > 细节唯一权威源：原语在 `primitives/`，机制在 `interaction-skills/`，站点在 domain-skills，应用在 workspace apps。
 
-**两层 API，一个守护进程**：协议层 652 方法带类型直调（`session.Page.navigate(...)`，无封装遮蔽）+ 语义层 snake_case 助手（`goto_url` / `js` / `click_at_xy` / `wait_for_render`，预注入裸全局名）。`bh` CLI 首次使用自动拉起长驻 daemon（Node ≥22，零运行时依赖），附着**用户自己打开的浏览器**（永不 spawn，专属 tab 铁律，人机共存）。初始化：使用前判系统环境（Node 版本闸），daemon（重）生时幂等带起看板、rmux 守护、page-detect watch、supervisor-core（fire-and-forget，不动既有附着）。page-detect 使用独立实例，首次会多弹一次 Chrome Allow。
+**两层 API，一个守护进程**：协议层 652 方法带类型直调（`session.Page.navigate(...)`，无封装遮蔽）+ 语义层 snake_case 助手（`goto_url` / `js` / `click_at_xy` / `wait_for_render`，预注入裸全局名）。`bh` CLI 首次使用自动拉起长驻 daemon（Node ≥22，运行时依赖仅 commander/zod 两项白名单），附着**用户自己打开的浏览器**（永不 spawn，专属 tab 铁律，人机共存）。初始化：使用前判系统环境（Node 版本闸），daemon（重）生时幂等带起看板、rmux 守护、page-detect watch、supervisor-core（fire-and-forget，不动既有附着）。page-detect 使用独立实例，首次会多弹一次 Chrome Allow。
 
 ## 意图路由（想做什么 -> 用什么）
 

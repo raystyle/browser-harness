@@ -16,14 +16,22 @@
  *   bh --status   # is the REPL running? prints health JSON
  *   bh --stop     # gracefully shut it down
  *   bh --logs     # stream the server log
- *   bh --restart  # stop + start fresh (drops session state)
+ *   bh --restart  # stop + start fresh (drops session state) — write op: needs --yes
  *   bh --start    # explicit start (no-op if already running)
+ *
+ * Structured commands (sessions/rmux/dashboard/doctor/skill/record/video/run)
+ * go through Commander (D29); the bare-snippet and plugin-routing paths keep
+ * the original hand-rolled passthrough (agent/plugin contract unchanged).
+ * Write ops (--restart, skill sync) default to dry-run; --yes executes.
+ * Exit codes (G002 contract): 0 ok, 1 fail, 2 usage, 3 not-found.
  */
 
 import { readFileSync, appendFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Command } from 'commander';
+import { z } from 'zod';
 import { derivedPort, instanceName, logFile } from './paths.js';
 import { homeDir, dataDir } from './paths.js';
 import { envNumber } from './env.js';
@@ -38,11 +46,14 @@ let URL_ = `http://${HOST}:${PORT}`;
 let LOG = process.env.CDP_REPL_LOG ?? logFile(instanceName());
 const REPL = fileURLToPath(new URL('./repl.js', import.meta.url));
 
+/** Exit-code contract (G002 退出码表): 0 ok / 1 fail / 2 usage / 3 not-found. */
+const EXIT = { ok: 0, fail: 1, usage: 2, notFound: 3 } as const;
+
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 function die(msg: string): never {
   process.stderr.write(`bh: ${msg}\n`);
-  process.exit(1);
+  process.exit(EXIT.fail);
 }
 
 async function isUp(): Promise<boolean> {
@@ -97,15 +108,15 @@ async function postEval(code: string): Promise<void> {
     } else {
       process.stderr.write(`bh: ${msg}（daemon 无响应？先 bh doctor / bh --status）\n`);
     }
-    process.exit(1);
+    process.exit(EXIT.fail);
   }
   const body = await res.text();
   if (res.status === 200) {
     if (body.length > 0) process.stdout.write(body.endsWith('\n') ? body : body + '\n');
-    process.exit(0);
+    process.exit(EXIT.ok);
   } else {
     if (body.length > 0) process.stderr.write(body.endsWith('\n') ? body : body + '\n');
-    process.exit(1);
+    process.exit(EXIT.fail);
   }
 }
 
@@ -153,58 +164,35 @@ async function tailLog(): Promise<void> {
   }
 }
 
-function usage(): never {
-  const lines = [
-    'bh — eval JS in the persistent CDP REPL. Auto-starts the REPL on first use.',
-    '',
-    'Usage:',
-    "  bh 'await session.connect({wsUrl:\"ws://127.0.0.1:9222/devtools/browser/<id>\"})'",
-    "  bh 'await session.Page.navigate({url:\"https://example.com\"})'",
-    '  bh <<EOF ... EOF        (multi-statement snippet from stdin; use explicit `return`)',
-    '',
-    '  bh --status   # is the REPL running? prints health JSON',
-    '  bh --start    # explicit start (no-op if already running)',
-    '  bh --stop     # gracefully shut it down',
-    '  bh --restart  # stop + start fresh (drops session state)',
-    '  bh --logs     # stream the server log',
-    '',
-    '  bh sessions   # object model + live inventory: instances, daemons, tab tables',
-    '  bh rmux       # rmux supervision plane: install, daemon, session/pane tree',
-    "  bh --new-tab '<js>'  # open a fresh about:blank tab, attach, run there (tab stays)",
-    '',
-    `Env: CDP_REPL_PORT (default 9876), CDP_REPL_LOG (default ${LOG}).`,
-    'Requires Node >= 22 (native WebSocket).',
-  ];
-  process.stdout.write(lines.join('\n') + '\n');
-  process.exit(0);
-}
-
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function main(): Promise<void> {
-  // bh needs the built-in WebSocket client.
-  const nodeMajor = Number((process.versions.node.split('.')[0] ?? '0'));
-  if (!(nodeMajor >= 22)) die(`Node >= 22 required (found ${process.versions.node}) — bh relies on Node's built-in WebSocket client`);
-  // `--name <instance>` — set the bh instance identity BEFORE anything derives
-  // ports/paths from it (guardian apps like page-detect watch run as their own
-  // named daemon instance, x-monitor style). Eaten from argv so dispatch never
-  // sees it.
-  const argv = process.argv.slice(2);
-  const nameIdx = argv.indexOf('--name');
-  if (nameIdx >= 0 && argv[nameIdx + 1]) {
-    process.env.BH_NAME = argv[nameIdx + 1];
-    argv.splice(nameIdx, 2);
-  }
+/** Identity must land in env BEFORE anything derives ports/paths from it. */
+function applyIdentity(): void {
   PORT = String(process.env.CDP_REPL_PORT ?? derivedPort());
   URL_ = `http://${HOST}:${PORT}`;
   LOG = process.env.CDP_REPL_LOG ?? logFile(instanceName());
-  const arg = argv[0];
-  await dispatch(arg, argv);
 }
+
+/**
+ * Write-op guard (D29): without --yes a write op only prints its plan — the
+ * CLI is read-only by default. --dry-run is the explicit spelling of the
+ * same; --yes + --dry-run together still only prints.
+ */
+function guardWrite(label: string, opts: { yes?: boolean | undefined; dryRun?: boolean | undefined }): boolean {
+  if (opts.yes && !opts.dryRun) return true;
+  console.log(`[dry-run] ${label}${opts.dryRun ? '' : '（--yes 执行）'}`);
+  return false;
+}
+
+/** Global write-op flags shared by the top level and skill sync (Zod-checked). */
+const WriteOpts = z.object({
+  yes: z.boolean().optional(),
+  dryRun: z.boolean().optional(),
+});
 
 /**
  * One app-run record appended to <BH_HOME>/data/app-runs.jsonl — the
@@ -232,7 +220,7 @@ function recordAppRun(app: string, argv: string[], code: number, ms: number, log
 async function runPlugin(name: string, args: string[]): Promise<void> {
   const { loadPlugin } = await import('./plugins.js');
   const plugin = await loadPlugin(name);
-  if (!plugin) { process.stderr.write(`bh: no plugin "${name}" in <workspace>/apps/${name}.mjs\n`); process.exit(1); }
+  if (!plugin) { process.stderr.write(`bh: no plugin "${name}" in <workspace>/apps/${name}.mjs\n`); process.exit(EXIT.fail); }
   const { remoteHost } = await import('./remote.js');
   const { createHelpers } = await import('./helpers.js');
   const { createBrowserHelpers } = await import('./browser_helpers.js');
@@ -243,7 +231,7 @@ async function runPlugin(name: string, args: string[]): Promise<void> {
   if (!(plugin as { selfManaged?: boolean }).selfManaged) {
     await ensureDaemon().catch((e: any) => {
       process.stderr.write(`bh: ${String(e?.message ?? e)}\n`);
-      process.exit(1);
+      process.exit(EXIT.fail);
     });
   }
   const host = remoteHost(Number(PORT));
@@ -262,99 +250,88 @@ async function runPlugin(name: string, args: string[]): Promise<void> {
     code = await plugin.main(args, { helpers: helpers as any, browserHelpers: browserHelpers as any });
   } catch (e: any) {
     (process.stderr.write as any)(`bh: ${String(e?.stack ?? e)}\n`);
-    code = 1;
+    code = EXIT.fail;
   } finally {
     (process.stderr.write as any) = origWrite;
   }
   recordAppRun(name, args, typeof code === 'number' ? code : 0, Date.now() - t0, log);
-  process.exit(typeof code === 'number' ? code : 0);
+  process.exit(typeof code === 'number' ? code : EXIT.ok);
 }
 
-async function dispatch(arg: string | undefined, argv: string[]): Promise<void> {
-  if (argv[0] === '--new-tab') {
-    // Explicit-new-tab primitive: open about:blank, attach the session to it,
-    // then run the snippet there. The tab stays open after. (postEval exits
-    // the process per call, so this is ONE composite snippet.)
-    await startRepl();
-    const code = argv[1] ?? await readStdin();
-    await postEval(`const __bh_new_tab = await session.domains.Target.createTarget({ url: 'about:blank' }); await session.use(__bh_new_tab.targetId);\n${code}`);
-    return;
+/**
+ * Legacy passthrough — the ORIGINAL default path, unchanged (agent/plugin
+ * contract): a bare JS snippet, or unknown-word plugin routing with raw args.
+ */
+async function legacyPassthrough(argv: string[]): Promise<void> {
+  const arg = argv[0]!;
+  if (/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(arg)) {
+    const { pluginPath } = await import('./plugins.js');
+    if (pluginPath(arg)) {
+      await runPlugin(arg, argv.slice(1));
+      return;
+    }
   }
-  if (argv[0] === 'sessions') {
-    const { runSessions } = await import('./admin.js');
-    console.log(JSON.stringify(await runSessions(), null, 1));
-    return;
-  }
-  if (argv[0] === 'rmux') {
-    // Probe the rmux supervision plane: install, daemon liveness, session/pane tree.
-    const { Rmux } = await import('./rmux.js');
-    console.log(JSON.stringify(await new Rmux().status(), null, 1));
-    return;
-  }
-  if (argv[0] === 'dashboard') {
-    // Read-only web board (SSE) on 127.0.0.1: instances / attach surface /
-    // rmux supervision / worker heartbeat / page verdicts / resident apps.
-    const sub = argv[1] ?? 'start';
-    const { DASHBOARD_PORT } = await import('./dashboard.js');
-    const URLD = `http://127.0.0.1:${DASHBOARD_PORT}`;
-    const alive = async () => {
-      try { const r = await fetch(URLD, { signal: AbortSignal.timeout(1000) }); return r.ok; } catch { return false; }
-    };
-    if (sub === 'stop') {
-      // No /quit endpoint by design (read-only); kill via registry-free port probe is
-      // out of scope — tell the operator the PID instead.
-      const { spawnSync } = await import('node:child_process');
-      const r = spawnSync('powershell', ['-NoProfile', '-Command',
-        `Get-NetTCPConnection -LocalPort ${DASHBOARD_PORT} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess`],
-        { timeout: 8000, windowsHide: true, encoding: 'utf8' });
-      const pid = Number(String(r.stdout ?? '').trim());
-      if (Number.isInteger(pid) && pid > 0) {
-        try { process.kill(pid, 'SIGTERM'); console.log(`dashboard (pid ${pid}) stopped`); } catch { console.log(`dashboard pid ${pid} not killable`); }
-      } else {
-        console.log('dashboard not running');
+  await startRepl();
+  await postEval(arg);
+}
+
+// --- structured commands (Commander, D29) -------------------------------------
+
+const KNOWN_COMMANDS = new Set(['sessions', 'rmux', 'dashboard', 'doctor', 'skill', 'skills', 'record', 'video', 'run']);
+
+function pkgVersion(): string {
+  return (JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { version: string }).version;
+}
+
+function buildProgram(): Command {
+  const program = new Command();
+  program
+    .name('bh')
+    .description('eval JS in the persistent CDP REPL; auto-starts the daemon on first use')
+    .version(pkgVersion())
+    .option('--status', 'print daemon health JSON')
+    .option('--start', 'explicit start (no-op if already running)')
+    .option('--stop', 'graceful shutdown (idempotent)')
+    .option('--restart', 'stop + start fresh, drops session state (write op: needs --yes)')
+    .option('--logs', 'stream the daemon log')
+    .option('--new-tab', 'open a fresh about:blank tab, attach, run the snippet there (tab stays)')
+    .option('-n, --dry-run', 'write ops only print what they would do')
+    .option('-y, --yes', 'write ops execute (default is dry-run)')
+    // Unknown options pass through untouched — the bare-snippet path may
+    // carry anything, and structured commands parse their own flags strictly.
+    .allowUnknownOption()
+    .exitOverride((err: { code?: string; message?: unknown; exitCode?: number }) => {
+      if (err.code === 'commander.help' || err.code === 'commander.version' || err.code === 'commander.helpDisplayed') {
+        process.exit(err.exitCode ?? EXIT.ok);
       }
-      return;
-    }
-    if (sub === 'status') {
-      console.log(JSON.stringify({ running: await alive(), url: URLD }));
-      return;
-    }
-    // start (idempotent, detached)
-    if (await alive()) { console.log(`dashboard already up: ${URLD}`); return; }
-    const { spawn } = await import('node:child_process');
-    const { openSync, closeSync } = await import('node:fs');
-    const { tmpDir } = await import('./paths.js');
-    const log = openSync(path.join(tmpDir(), 'dashboard.log'), 'w');
-    const child = spawn(process.execPath, [fileURLToPath(new URL('./dashboard.js', import.meta.url))],
-      { detached: true, windowsHide: true, stdio: ['ignore', log, log], env: { ...process.env, BH_HOME: process.env.BH_HOME ?? '' } });
-    child.unref();
-    closeSync(log);
-    const deadline = Date.now() + 10_000;
-    while (Date.now() < deadline) {
-      await sleep(200);
-      if (await alive()) { console.log(`dashboard up: ${URLD}`); return; }
-    }
-    process.stderr.write(`bh: dashboard did not come up — check ${path.join(tmpDir(), 'dashboard.log')}\n`);
-    process.exit(1);
-  }
-  switch (arg) {
-    case '--status': {
+      // Usage/argument errors are exit 2 (G002), never 1. Commander already
+      // printed the error line to stderr ("error: ..."); only fix the code.
+      process.exit(EXIT.usage);
+    });
+
+  program.action(async (operands: string[]) => {
+    const raw = program.opts<Record<string, unknown>>();
+    const flags = WriteOpts.parse(raw);
+    if (raw['status'] !== undefined) {
       if (await isUp()) {
         console.log(await healthJson());
       } else {
         console.log('{"ok":false,"error":"down"}');
-        process.exit(1);
+        process.exit(EXIT.fail);
       }
       return;
     }
-    case '--start':
+    if (raw['start'] !== undefined) {
       await startRepl();
       console.log(await healthJson());
       return;
-    case '--stop':
+    }
+    if (raw['stop'] !== undefined) {
       await stopRepl();
       return;
-    case '--restart': {
+    }
+    if (raw['restart'] !== undefined) {
+      if (!guardWrite(`restart ${instanceName()} daemon (${URL_})，会丢弃会话状态`, flags)) return;
       if (await isUp()) {
         try { await fetch(`${URL_}/quit`, { method: 'POST' }); } catch { /* already gone */ }
       }
@@ -363,54 +340,145 @@ async function dispatch(arg: string | undefined, argv: string[]): Promise<void> 
       console.log(await healthJson());
       return;
     }
-    case '--logs':
+    if (raw['logs'] !== undefined) {
       await tailLog();
       return;
-    case '--version': {
-      const { readFileSync } = await import('node:fs');
-      const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { version: string };
-      console.log(pkg.version);
-      process.exit(0);
+    }
+    if (raw['newTab'] !== undefined) {
+      // Explicit-new-tab primitive: open about:blank, attach the session to it,
+      // then run the snippet there. The tab stays open after. (postEval exits
+      // the process per call, so this is ONE composite snippet.)
+      await startRepl();
+      const code = operands[0] ?? await readStdin();
+      await postEval(`const __bh_new_tab = await session.domains.Target.createTarget({ url: 'about:blank' }); await session.use(__bh_new_tab.targetId);\n${code}`);
       return;
     }
-    case 'doctor': {
-      const flags = process.argv.slice(3);
+    // No flag, no subcommand: bare snippet from argv (flag-combos) or stdin.
+    if (operands.length > 0) {
+      await startRepl();
+      await postEval(operands.join('\n'));
+      return;
+    }
+    // The bash version blocked reading a TTY stdin forever; fail fast instead.
+    if (process.stdin.isTTY) program.help();
+    await startRepl();
+    await postEval(await readStdin());
+  });
+
+  program.command('sessions')
+    .description('object model + live inventory: instances, daemons, tab tables')
+    .action(async () => {
+      const { runSessions } = await import('./admin.js');
+      console.log(JSON.stringify(await runSessions(), null, 1));
+    });
+
+  program.command('rmux')
+    .description('rmux supervision plane: install, daemon, session/pane tree')
+    .action(async () => {
+      const { Rmux } = await import('./rmux.js');
+      console.log(JSON.stringify(await new Rmux().status(), null, 1));
+    });
+
+  program.command('dashboard')
+    .description('read-only web board (SSE) on 127.0.0.1')
+    .argument('[sub]', 'start | stop | status')
+    .action(async (sub: string | undefined) => {
+      // Read-only board: instances / attach surface / rmux supervision /
+      // worker heartbeat / page verdicts / resident apps.
+      sub = sub ?? 'start';
+      const { DASHBOARD_PORT } = await import('./dashboard.js');
+      const URLD = `http://127.0.0.1:${DASHBOARD_PORT}`;
+      const alive = async () => {
+        try { const r = await fetch(URLD, { signal: AbortSignal.timeout(1000) }); return r.ok; } catch { return false; }
+      };
+      if (sub === 'stop') {
+        // No /quit endpoint by design (read-only); kill via registry-free port probe is
+        // out of scope — tell the operator the PID instead.
+        const { spawnSync } = await import('node:child_process');
+        const r = spawnSync('powershell', ['-NoProfile', '-Command',
+          `Get-NetTCPConnection -LocalPort ${DASHBOARD_PORT} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess`],
+          { timeout: 8000, windowsHide: true, encoding: 'utf8' });
+        const pid = Number(String(r.stdout ?? '').trim());
+        if (Number.isInteger(pid) && pid > 0) {
+          try { process.kill(pid, 'SIGTERM'); console.log(`dashboard (pid ${pid}) stopped`); } catch { console.log(`dashboard pid ${pid} not killable`); }
+        } else {
+          console.log('dashboard not running');
+        }
+        return;
+      }
+      if (sub === 'status') {
+        console.log(JSON.stringify({ running: await alive(), url: URLD }));
+        return;
+      }
+      // start (idempotent, detached)
+      if (await alive()) { console.log(`dashboard already up: ${URLD}`); return; }
+      const { spawn } = await import('node:child_process');
+      const { openSync, closeSync } = await import('node:fs');
+      const { tmpDir } = await import('./paths.js');
+      const log = openSync(path.join(tmpDir(), 'dashboard.log'), 'w');
+      const child = spawn(process.execPath, [fileURLToPath(new URL('./dashboard.js', import.meta.url))],
+        { detached: true, windowsHide: true, stdio: ['ignore', log, log], env: { ...process.env, BH_HOME: process.env.BH_HOME ?? '' } });
+      child.unref();
+      closeSync(log);
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline) {
+        await sleep(200);
+        if (await alive()) { console.log(`dashboard up: ${URLD}`); return; }
+      }
+      process.stderr.write(`bh: dashboard did not come up — check ${path.join(tmpDir(), 'dashboard.log')}\n`);
+      process.exit(EXIT.fail);
+    });
+
+  program.command('doctor')
+    .description('diagnose the local install (daemon, browser attach, assets)')
+    .option('--json', 'machine-readable report')
+    .option('--require-existing-daemon', 'fail if no daemon is running')
+    .action(async (opts: { json?: boolean; requireExistingDaemon?: boolean }) => {
       const { runDoctor } = await import('./admin.js');
-      const r = await runDoctor({ requireExistingDaemon: flags.includes('--require-existing-daemon') });
-      if (flags.includes('--json')) {
+      const r = await runDoctor({ requireExistingDaemon: opts.requireExistingDaemon === true });
+      if (opts.json) {
         console.log(JSON.stringify({ schema_version: 1, healthy: r.healthy, ...r.header, checks: r.checks }));
       } else {
         for (const [k, v] of Object.entries(r.header)) console.log(`${k.padEnd(10)} ${v}`);
         for (const c of r.checks) console.log(`${c.ok ? '  [ok  ]' : '  [FAIL]'} ${c.name} — ${c.detail}`);
       }
-      process.exit(r.healthy ? 0 : 1);
-      return;
-    }
-    case 'skill':
-    case 'skills': {
-      const sub = argv[1] ?? 'status';
-      const dryRun = argv.includes('--dry-run');
+      process.exit(r.healthy ? EXIT.ok : EXIT.fail);
+    });
+
+  program.command('skill')
+    .alias('skills')
+    .description('skill/asset distribution: status | sync')
+    .argument('[sub]', 'status | sync')
+    .option('-n, --dry-run', 'sync only prints what it would copy')
+    .option('-y, --yes', 'sync executes (default is dry-run)')
+    .action(async (sub: string | undefined, opts: { dryRun?: boolean; yes?: boolean }) => {
+      const s = sub ?? 'status';
       const { skillStatus, skillSync, provisionWorkspace } = await import('./skills.js');
       const { workspaceDir } = await import('./paths.js');
-      if (sub === 'sync') {
+      if (s === 'sync') {
+        // Write op (D29): without --yes only the plan is printed.
+        const guard = WriteOpts.parse(opts);
+        const dryRun = !guard.yes || guard.dryRun === true;
         for (const a of skillSync(dryRun)) console.log(`${a.tool.padEnd(8)} ${a.action}`);
         const prov = provisionWorkspace(workspaceDir(), dryRun);
         console.log(`workspace ${dryRun ? 'would copy' : 'copied'} ${prov.copied.length} file(s)${prov.retired.length ? `, retired ${prov.retired.length}` : ''}`);
         prov.copied.slice(0, 5).forEach(f => console.log(`  + ${f}`));
         if (prov.copied.length > 5) console.log(`  … ${prov.copied.length - 5} more`);
-      } else if (sub === 'status') {
-        for (const s of skillStatus()) {
-          console.log(`${s.state.padEnd(14)} ${s.tool.padEnd(8)} ${s.dir}${s.hash ? `  (${s.hash})` : ''}`);
+      } else if (s === 'status') {
+        for (const st of skillStatus()) {
+          console.log(`${st.state.padEnd(14)} ${st.tool.padEnd(8)} ${st.dir}${st.hash ? `  (${st.hash})` : ''}`);
         }
       } else {
-        process.stderr.write('bh: usage: bh skill status|sync [--dry-run]\n');
-        process.exit(2);
+        process.stderr.write('bh: usage: bh skill status|sync [--dry-run] [--yes]\n');
+        process.exit(EXIT.usage);
       }
-      process.exit(0);
-      return;
-    }
-    case 'record': {
-      const sub = argv[1];
+      process.exit(EXIT.ok);
+    });
+
+  program.command('record')
+    .description('per-action frame recording: enable|disable|start|stop|status')
+    .argument('[sub]', 'enable | disable | start | stop | status')
+    .action(async (sub: string | undefined) => {
       if (sub === 'enable') { (await import('./recorder.js')).setRecordingPref(true); console.log('recording pref: enabled'); return; }
       if (sub === 'disable') { (await import('./recorder.js')).setRecordingPref(false); console.log('recording pref: disabled'); return; }
       if (sub === 'start') {
@@ -422,12 +490,15 @@ async function dispatch(arg: string | undefined, argv: string[]): Promise<void> 
       // status
       const { recordingEnabled, activeRecordingDir } = await import('./recorder.js');
       console.log(JSON.stringify({ enabled: recordingEnabled(), dir: activeRecordingDir() ?? null }));
-      return;
-    }
-    case 'video': {
-      const sub = argv[1];
-      const recDir = argv[2];
-      const val = (n: string) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : undefined; };
+    });
+
+  program.command('video')
+    .description('recording pipeline: init|export|review <recording-dir>')
+    .argument('<sub>', 'init | export | review')
+    .argument('[recDir]', 'recording directory')
+    .option('--brief <path>', 'edit brief JSON (default <recDir>/edit-brief.json)')
+    .option('--out <path>', 'output path (default <recDir>/video.mp4)')
+    .action(async (sub: string, recDir: string | undefined, opts: { brief?: string; out?: string }) => {
       const video = await import('./video.js');
       if (sub === 'init' && recDir) {
         const r = video.videoInit(recDir);
@@ -435,55 +506,62 @@ async function dispatch(arg: string | undefined, argv: string[]): Promise<void> 
         return;
       }
       if (sub === 'export' && recDir) {
-        const briefPath = val('--brief') ?? path.join(recDir, 'edit-brief.json');
+        const briefPath = opts.brief ?? path.join(recDir, 'edit-brief.json');
         const brief = JSON.parse(readFileSync(briefPath, 'utf8'));
-        const out = val('--out') ?? path.join(recDir, 'video.mp4');
+        const out = opts.out ?? path.join(recDir, 'video.mp4');
         const r = video.exportVideo(recDir, brief, out);
         console.log(r.mode === 'mp4' ? `exported: ${r.path}` : `ffmpeg missing — HTML slideshow written instead: ${r.path}`);
         return;
       }
       if (sub === 'review' && recDir) {
-        const briefPath = val('--brief') ?? path.join(recDir, 'edit-brief.json');
+        const briefPath = opts.brief ?? path.join(recDir, 'edit-brief.json');
         const brief = JSON.parse(readFileSync(briefPath, 'utf8'));
         const sheet = video.reviewContactSheet(recDir, brief);
         console.log(sheet ? `contact sheet: ${sheet}` : 'contact sheet unavailable (needs ffmpeg)');
         return;
       }
       process.stderr.write('bh: usage: bh video init|export|review <recording-dir> [--brief path] [--out path]\n');
-      process.exit(2);
-      return;
-    }
-    case '--help':
-    case '-h':
-      usage();
-      return;
-    case undefined: {
-      // The bash version blocked reading a TTY stdin forever; fail fast instead.
-      if (process.stdin.isTTY) usage();
-      await startRepl();
-      await postEval(await readStdin());
-      return;
-    }
-    case 'run': {
-      const name = argv[1];
-      if (!name) { process.stderr.write('bh: usage: bh run <name> [args...]\n'); process.exit(2); }
-      await runPlugin(name, argv.slice(2));
-      return;
-    }
-    default: {
-      // Unknown command = plugin routing (Python contract); fall back to JS eval.
-      if (arg && /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(arg)) {
-        const { pluginPath } = await import('./plugins.js');
-        if (pluginPath(arg)) {
-          await runPlugin(arg, argv.slice(1));
-          return;
-        }
-      }
-      await startRepl();
-      await postEval(arg!);
-      return;
-    }
+      process.exit(EXIT.usage);
+    });
+
+  program.command('run')
+    .description('run a plugin app with raw args')
+    .argument('<name>', 'plugin name (workspace/apps/<name>.mjs)')
+    .argument('[args...]', 'raw args forwarded to the app')
+    .allowUnknownOption() // app flags are the app's own contract
+    .allowExcessArguments()
+    .action(async (name: string, args: string[]) => {
+      await runPlugin(name, args);
+    });
+
+  return program;
+}
+
+async function main(): Promise<void> {
+  // bh needs the built-in WebSocket client.
+  const nodeMajor = Number((process.versions.node.split('.')[0] ?? '0'));
+  if (!(nodeMajor >= 22)) die(`Node >= 22 required (found ${process.versions.node}) — bh relies on Node's built-in WebSocket client`);
+  // `--name <instance>` — set the bh instance identity BEFORE anything derives
+  // ports/paths from it (guardian apps like page-detect watch run as their own
+  // named daemon instance, x-monitor style). Eaten from argv so dispatch never
+  // sees it. (Hand-stripped pre-Commander: it may appear anywhere in argv.)
+  const argv = process.argv.slice(2);
+  const nameIdx = argv.indexOf('--name');
+  if (nameIdx >= 0 && argv[nameIdx + 1]) {
+    process.env.BH_NAME = argv[nameIdx + 1];
+    argv.splice(nameIdx, 2);
   }
+  applyIdentity();
+
+  // Legacy passthrough keeps the ORIGINAL path for bare snippets and plugin
+  // routing (e.g. `bh google-search <q> --top 5`) — zero interface change for
+  // the agent/plugin contract; Commander never mangles those args.
+  const first = argv[0];
+  if (first !== undefined && !first.startsWith('-') && !KNOWN_COMMANDS.has(first)) {
+    await legacyPassthrough(argv);
+    return;
+  }
+  await buildProgram().parseAsync(argv, { from: 'user' });
 }
 
 await main();

@@ -15,6 +15,17 @@
 | 文档滞后六处清理 | 已完成 | INDEX（16 篇/74 用例/primitives 登记）、PRD D13 已交付、GOAL 锚点轮转、ROADMAP 收口、TODO 头部 | 内部 review |
 | tag v0.3.0 | 已完成 | npm test 全绿后打 tag | R001 发布 |
 
+## D29 任务清单
+
+| 任务项 | 进度 | 说明 | 出处 |
+| --- | --- | --- | --- |
+| Commander 迁移 | 已完成 | 结构化命令（sessions/rmux/dashboard/doctor/skill/record/video/run + 全局 flag）走 Commander 严格解析；裸片段与插件路由保持原直通路径；--name 预剥离保位次无关 [实证: tsc 零错误 + 冒烟] | PRD D29 |
+| Zod 校验 | 已完成 | env.ts schema 化（大小写不敏感 tri-bool 回归修）；CLI 写操作选项 WriteOpts | PRD D29 |
+| --dry-run/--yes | 已完成 | --restart 与 skill sync 默认只打印计划；无 --yes 一律 dry-run；退出码 usage=2 [实证: video usage=2 / skill bogus=2 / restart dry-run=0] | PRD D29 |
+| G002 退出码表 | 已完成 | 第 7 条：0/1/2/3 四档 + 写操作默认 dry-run | 用户裁定 |
+| 文档同步 | 已完成 | AGENTS/README/SKILL 白名单表述；R001/README sync --yes | PLAN |
+| 封版 0.4.0 | 已完成 | pack + install -g + 冒烟（restart/sync dry-run、video usage=2、x-intel 插件路由、eval `return 1+1` 得 2、看板 200）+ tag [实证: 2026-09-08 安装态] | 用户裁定目标 |
+
 ## D28 任务清单
 
 | 任务项 | 进度 | 说明 | 出处 |
