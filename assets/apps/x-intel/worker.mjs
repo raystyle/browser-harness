@@ -315,7 +315,7 @@ async function main() {
   } catch { /* daemon still attaching — round 1 will switch */ }
 
   tick(); // visible to the supervisor immediately on start
-  wlog(`x-intel::x-monitor 启动：5 秒探测 · 触发后 10 秒内随机启动抓取 · 兜底每 ${FALLBACK_INTERVAL} 秒`);
+  wlog(`x-intel::x-monitor 启动：6-8 秒随机探测 · 触发后 10 秒内随机抓取 · 轮间隔 ≥${MIN_ROUND_SPACING} 秒 · 兜底每 ${FALLBACK_INTERVAL} 秒`);
   let lastRoundAt = 0;
   for (;;) {
     const trigger = await waitForTrigger(h);
@@ -359,7 +359,7 @@ async function main() {
       writeStatus({
         state: 'running',
         metrics: [
-          { label: '检测节奏', value: '5 秒探测 · 触发后 10 秒内随机抓取' },
+          { label: '检测节奏', value: `6-8 秒随机探测 · 轮间隔 ≥${MIN_ROUND_SPACING} 秒` },
           { label: '库存', value: `${r.total} 帖` },
           { label: '库内时间线', value: `${zh(r.earliest)} 至 ${zh(r.latest)}` },
         ],
