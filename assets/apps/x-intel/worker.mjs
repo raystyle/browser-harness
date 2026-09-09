@@ -319,6 +319,15 @@ async function main() {
   let lastRoundAt = 0;
   for (;;) {
     const trigger = await waitForTrigger(h);
+    // Harvest-storm guard: MIN_ROUND_SPACING exists precisely for this gate.
+    // Without it a background tab's title badge (N) — which never clears on
+    // its own — keeps the trigger lit and rounds fire back-to-back (~10s
+    // apart, all duplicates). Space actual rounds; the wait heartbeats so
+    // the supervisor still sees a live worker.
+    const since = Date.now() - lastRoundAt;
+    if (since < MIN_ROUND_SPACING * 1000) {
+      await sleepWithHeartbeat(MIN_ROUND_SPACING - since / 1000);
+    }
     // User spec: on detection, start the harvest after a RANDOM delay of up
     // to 10 seconds (natural jitter; no fixed rhythm to fingerprint).
     await sleepWithHeartbeat(Math.random() * 10);

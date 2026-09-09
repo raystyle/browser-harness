@@ -2,6 +2,10 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.6.4] - 2026-09-09
+
+- **x-monitor 收割风暴限流接线（D38）**：`MIN_ROUND_SPACING`（`X_MIN_SPACING`，默认 60s）自声明以来从未接入主循环（`lastRoundAt` 只写不读）；叠加触发探针的标题徽章 `(N)` 路径在后台 tab 永不清零，实机 ~10s 一轮空转收割（每轮「新贴 6 · 已存在 6」刷屏看板）。主循环接线轮间最小间隔（带心跳等待，supervisor 视角存活不变），触发语义与收割面不变
+
 ## [0.6.3] - 2026-09-08
 
 - **技能面与文档对齐 0.6.x 能力**：SKILL.md frontmatter 补元素引用/无头引擎/升级轮换；CLI 表加 `bh upgrade`、`bh headless`（hl 别名）、`skill sites/site`；错误规约升级为退出码表（0/1/2/3）+ 写操作 dry-run 纪律；timeout 段补 remote 429 退避重试与挂锁自动清算。README 补无头引擎小节（`bh headless start --cookies`）与站点知识自动装载条目；仓库描述精简为一句
