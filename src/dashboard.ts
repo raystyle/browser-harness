@@ -437,7 +437,7 @@ const PAGE = `<!doctype html>
              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .appbody { padding: 10px 14px 12px; }
   .appcard.collapsed .appdesc, .appcard.collapsed .appbody { display: none; }
-  /* routine x-monitor refresh ticks: inline tag stream, several per row */
+  /* routine x-intel refresh ticks: inline tag stream, several per row */
   .tagrow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   .tag { font-size: 11px; color: var(--label2); background: rgba(120,120,128,.10); border-radius: 6px;
          padding: 2px 7px; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -749,7 +749,7 @@ function render(s) {
   }
   if (!(r.sessions||[]).length) h += '<tr><td colspan="3"><span class="muted">（无会话）</span></td></tr>';
   h += '</table></div>';
-  // 右侧日志栏：纯日志横幅（x-monitor 与 page-detect 双源；守护状态在应用监控台卡内）
+  // 右侧日志栏：纯日志横幅（x-intel worker 与 page-detect 双源；守护状态在应用监控台卡内）
   let rail = '';
   // 累加历史：新条目追加进浏览器侧数组，最多留 100 条，显示最新 10 条
   if (!window.__logAll) window.__logAll = [];
@@ -777,7 +777,7 @@ function render(s) {
   for (const e of window.__logAll.slice(-10).reverse()) {
     const m = /^\\[([0-9:]+)\\]\\s*([\\s\\S]*)$/.exec(e) || [null,'',e];
     const time = m[1] ?? '', body = m[2] ?? e;
-    const src = dn(body.includes('page-detect') ? 'page-detect' : 'x-monitor');
+    const src = dn(body.includes('page-detect') ? 'page-detect' : 'x-intel');
     let cls = 'info', icon = GLYPH_CHECK, title = '消息';
     if (body.includes('告警')) { cls='err'; icon=GLYPH_EXCL; title='告警'; }
     else if (body.includes('刷新失败')) { cls='err'; icon=GLYPH_EXCL; title='刷新失败'; }

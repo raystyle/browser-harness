@@ -20,7 +20,7 @@ lazy 拉起（ensureDaemon，CDP 应答才算就绪）
 退出（空闲 30 分钟自退 / 显式 --stop；只关自身连接）
 ```
 
-外部进程守护：无（设计如此，lazy 语义）。唯一有 supervisor 的是 x-monitor 链（rmux 守 worker，worker 自愈 daemon）。**用户的浏览器不在任何守护范围内**。
+外部进程守护：无（设计如此，lazy 语义）。唯一有 supervisor 的是 x-intel 监控链（rmux 会话 x-intel 守 worker，worker 自愈 daemon）。**用户的浏览器不在任何守护范围内**。
 
 ## 落地形态
 

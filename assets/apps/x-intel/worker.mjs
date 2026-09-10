@@ -1,5 +1,5 @@
 /**
- * x-worker — the business loop. Runs in rmux session "x-monitor";
+ * x-worker — the business loop. Runs in rmux session "x-intel";
  * supervisor-core heals the session. Drives a DEDICATED daemon
  * (BH_NAME=x-intel) attached to the USER's browser (D11: never spawn,
  * never reshape/close windows, never touch a tab the user is reading).
@@ -345,7 +345,7 @@ async function main() {
   const h = createHelpers(remoteHost(await daemonPort()));
 
   tick(); // visible to the supervisor immediately on start
-  wlog(`x-intel::x-monitor 启动：只附着已打开的 x.com 主页（没有就等，不自建 tab）· 6-8 秒随机探测 · 触发后 10 秒内随机抓取 · 轮间隔 ≥${MIN_ROUND_SPACING} 秒 · 兜底每 ${FALLBACK_INTERVAL} 秒`);
+  wlog(`x-intel:: 启动：只附着已打开的 x.com 主页（没有就等，不自建 tab）· 6-8 秒随机探测 · 触发后 10 秒内随机抓取 · 轮间隔 ≥${MIN_ROUND_SPACING} 秒 · 兜底每 ${FALLBACK_INTERVAL} 秒`);
   // Waiting is a state, not an event: report it on transition (and refresh the
   // dashboard card), never as a log line every tick.
   let waitLogged = '';
@@ -358,7 +358,7 @@ async function main() {
       ],
     });
     if (waitLogged !== text) {
-      wlog(`x-intel::x-monitor 等待\n${text}，不动用户页面，继续探测`);
+      wlog(`x-intel:: 等待\n${text}，不动用户页面，继续探测`);
       waitLogged = text;
     }
   };
@@ -400,7 +400,7 @@ async function main() {
         // Consistent arithmetic on ONE basis (what the page actually presented):
         // detected = inserted + already-in-db. The pill's own claim is context
         // noise (it reports "≥1" when it has no number), never a metric.
-        wlog(`x-intel::x-monitor 刷新（${triggerZh}）\n页面检测到新贴 ${r.detected} 个 · 新入库 ${r.inserted} 个 · 其中 ${dup} 个已存在 · 库存共 ${r.total} 帖`);
+        wlog(`x-intel:: 刷新（${triggerZh}）\n页面检测到新贴 ${r.detected} 个 · 新入库 ${r.inserted} 个 · 其中 ${dup} 个已存在 · 库存共 ${r.total} 帖`);
         writeStatus({
           state: 'running',
           metrics: [
@@ -416,7 +416,7 @@ async function main() {
         lastRoundAt = Date.now();
       }
     } catch (e) {
-      wlog(`x-intel::x-monitor 刷新失败：${e instanceof Error ? e.message : String(e)}\n${e instanceof Error ? String(e.stack ?? '').split('\n').slice(1, 4).join('\n') : ''}`);
+      wlog(`x-intel:: 刷新失败：${e instanceof Error ? e.message : String(e)}\n${e instanceof Error ? String(e.stack ?? '').split('\n').slice(1, 4).join('\n') : ''}`);
       writeStatus({
         state: 'degraded',
         metrics: [],

@@ -1,8 +1,9 @@
 /**
- * x-intel launcher — idempotent, non-blocking, NO business loop.
- * Verifies the user's browser is attachable (D11: no spawn), then starts
- * the worker in rmux session "x-monitor". Healing belongs to
- * supervisor-core (generic guardian), not an in-app supervisor.
+ * x-intel launcher — the X MONITOR app (D46: search moved to x-search).
+ * Idempotent, non-blocking, NO business loop. Verifies the user's browser
+ * is attachable (D11: no spawn), then starts the worker in rmux session
+ * "x-intel". Healing belongs to supervisor-core (generic guardian), not
+ * an in-app supervisor.
  *
  * Usage: bh x-intel [start]    start the worker (idempotent)
  *        bh x-intel stop|close stop worker + dedicated daemon
@@ -16,8 +17,8 @@ export const description = '监控你已打开的 X 主页时间线并自动收�
 export const resident = true;
 export const selfManaged = true; // dedicated BH_NAME=x-intel daemon; never the default
 
-const WORKER_SESSION = process.env.X_RMUX_SESSION ?? 'x-monitor';
-const LEGACY_SUPERVISOR_SESSION = 'x-supervisor';
+const WORKER_SESSION = process.env.X_RMUX_SESSION ?? 'x-intel';
+const LEGACY_SESSIONS = ['x-monitor']; // D46 pre-split session name, killed on start/stop
 
 function writeStatus(st) {
   try {
@@ -39,13 +40,10 @@ async function stop() {
   const stopped = [];
   // Persist stopped first so supervisor-core will not respawn the worker.
   writeStatus({ state: 'stopped', metrics: [] });
-  for (const [label, session] of [
-    ['worker session', WORKER_SESSION],
-    ['legacy supervisor session', LEGACY_SUPERVISOR_SESSION],
-  ]) {
+  for (const session of [WORKER_SESSION, ...LEGACY_SESSIONS]) {
     if (await rmux.hasSession(session)) {
       await rmux.killSession(session);
-      stopped.push(`${label} "${session}" killed`);
+      stopped.push(`session "${session}" killed`);
     }
   }
   try {
@@ -68,8 +66,12 @@ export async function main(argv = [], ctx) {
       return 2;
     }
     if (sub === 'worker') { await import('./x-intel/worker.mjs'); await new Promise(() => {}); }
-    if (sub === 'search') return (await import('./x-intel/search.mjs')).main(argv.filter(a => a !== 'search'));
-    if (sub === 'harvest') return (await import('./x-intel/harvest.mjs')).main(argv.filter(a => a !== 'harvest'));
+    if (sub === 'search' || sub === 'harvest') {
+      // D46 split CTA: these lanes moved to the standalone x-search app.
+      const rest = argv.filter(a => a !== sub).join(' ');
+      process.stderr.write(`bh: x-intel 只管监控 x.com；${sub === 'search' ? '本地库检索' : '全量收割'}已拆到独立应用，直接运行：\n  bh x-search ${sub === 'search' ? rest || '<keyword>|--recent|--since|--stats' : `harvest ${rest}`.trim()}\n`);
+      return 2;
+    }
     if (sub === 'stop' || sub === 'close') return await stop();
 
     process.env.BH_NAME = process.env.BH_NAME ?? 'x-intel';
@@ -83,9 +85,9 @@ export async function main(argv = [], ctx) {
     }
 
     const rmux = new Rmux();
-    // Drop the old in-app supervisor if a leftover session is still around.
-    if (await rmux.hasSession(LEGACY_SUPERVISOR_SESSION)) {
-      await rmux.killSession(LEGACY_SUPERVISOR_SESSION);
+    // Drop pre-split leftovers (old session names) if still around.
+    for (const s of LEGACY_SESSIONS) {
+      if (await rmux.hasSession(s)) await rmux.killSession(s);
     }
     writeStatus({
       state: 'running',
@@ -111,7 +113,7 @@ export async function main(argv = [], ctx) {
         process.stderr.write('bh: supervisor-core missing from workspace — run `bh skill sync`（worker 暂时无人守护）\n');
       }
     } catch { /* best-effort: the worker itself is already up */ }
-    console.log('x-intel running (worker in rmux session "x-monitor"; supervisor-core heals it; db at <BH_HOME>/data/x_tweets.db)');
+    console.log('x-intel running (worker in rmux session "x-intel"; supervisor-core heals it; db at <BH_HOME>/data/x_tweets.db)');
     return 0;
   } catch (e) {
     process.stderr.write(`bh: x-intel failed: ${e instanceof Error ? e.message : String(e)}\n`);

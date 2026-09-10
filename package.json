@@ -1,6 +1,6 @@
 {
   "name": "browser-harness-ts",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "description": "Every Chrome DevTools Protocol method as a typed JS call. Persistent CDP session behind a tiny HTTP server + CLI. Node port of browser-use/browser-harness-js.",
   "type": "module",
   "license": "MIT",

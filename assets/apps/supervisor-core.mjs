@@ -121,7 +121,7 @@ const SUPERVISED = [
   },
   {
     name: 'x-intel',
-    session: 'x-monitor',
+    session: 'x-intel',
     heartbeat: 'x_worker.heartbeat',
     timeout: 120,
     onDemand: true,

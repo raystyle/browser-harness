@@ -14,13 +14,16 @@
  * monitor (worker.mjs) and a human clicking around cannot yank its context.
  * If the human takes the tab over mid-run it is left alone.
  *
- * Usage: bh x-harvest <query> --from 2026-08-01 --to 2026-09-01 [--step 1d] [--limit 20]
+ * Usage: bh x-search harvest <query> --from 2026-08-01 --to 2026-09-01 [--step 1d]
+ *
+ * D46: its OWN on-demand daemon (BH_NAME=x-search, idle-retires via
+ * BH_IDLE_TIMEOUT); the monitor app's x-intel daemon is never touched.
  */
 
 import path from 'node:path';
 import { importDist, bhHome, dataDir } from './lib.mjs';
 
-process.env.BH_NAME = process.env.BH_NAME ?? 'x-intel';
+process.env.BH_NAME = process.env.BH_NAME ?? 'x-search';
 const WORKSPACE = process.env.BH_BROWSER_WORKSPACE ?? path.join(bhHome(), 'browser-workspace');
 const DB_PATH = process.env.X_DB ?? path.join(dataDir(), 'x_tweets.db');
 
@@ -87,7 +90,7 @@ export async function main(argv = [], ctx) {
   const sqlite = await importDist('sqlite.js');
   await ensureDaemon();
   const { readFileSync } = await import('node:fs');
-  const port = Number(process.env.BH_PORT ?? (JSON.parse(readFileSync(path.join(bhHome(), 'runtime', 'bh-x-intel.port'), 'utf8')).port));
+  const port = Number(process.env.BH_PORT ?? (JSON.parse(readFileSync(path.join(bhHome(), 'runtime', 'bh-x-search.port'), 'utf8')).port));
   const h = createHelpers(remoteHost(port));
 
   const t0 = Date.parse(from);

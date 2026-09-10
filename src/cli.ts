@@ -877,7 +877,7 @@ async function main(): Promise<void> {
   if (!(nodeMajor >= 22)) die(`Node >= 22 required (found ${process.versions.node}) — bh relies on Node's built-in WebSocket client`);
   // `--name <instance>` — set the bh instance identity BEFORE anything derives
   // ports/paths from it (guardian apps like page-detect watch run as their own
-  // named daemon instance, x-monitor style). Eaten from argv so dispatch never
+  // named daemon instance, x-intel style). Eaten from argv so dispatch never
   // sees it. (Hand-stripped pre-Commander: it may appear anywhere in argv.)
   const argv = process.argv.slice(2);
   const nameIdx = argv.indexOf('--name');

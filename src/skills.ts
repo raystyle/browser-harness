@@ -214,6 +214,7 @@ const RETIRED_WORKSPACE_FILES: string[] = [
   'x_monitor.py', 'x_search.py', 'x_supervisor.py', 'x_worker.py',
   'apps/x-core', 'apps/x-core.mjs',
   'apps/x-intel/supervisor.mjs',
+  'apps/x-intel/search.mjs', 'apps/x-intel/harvest.mjs', // D46: search lanes moved to apps/x-search/
 ];
 
 export function provisionWorkspace(workspaceDir: string, dryRun = false): { copied: string[]; retired: string[] } {

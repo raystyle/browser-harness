@@ -52,7 +52,7 @@ const PID_FILE = () => path.join(dataDirOf(), 'page-watch.pid');
 const LOG_FILE = () => path.join(dataDirOf(), 'page-watch.log');
 
 /** Own log stream so the guardian's events show in the dashboard log rail
- * (same `[HH:MM:SS] title\n detail` shape x-monitor uses). 1MB rotate. */
+ * (same `[HH:MM:SS] title\n detail` shape the x-intel worker uses). 1MB rotate. */
 function logLine(text) {
   try {
     mkdirSync(dataDirOf(), { recursive: true });

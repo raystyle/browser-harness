@@ -1,6 +1,6 @@
 ---
 name: browser
-description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平台。两层 API：协议层（652 个 CDP 方法全类型直调）与语义层（goto_url/js/click_at_xy/snapshot_interactives/click_ref 等 snake_case 助手，tab 纪律、等待判官、自愈）。经 bh CLI 运行 JS 片段，长驻 Node daemon 持久会话，session、活动 target、全局变量跨调用保持。附着用户自己打开的浏览器（永不 spawn 用户面，专属 tab 铁律与人机共存）；另有自起无头引擎（bh headless，临时隔离、可克隆登录态、用完即杀）。含插件应用（web-fetch/google-search/medium-search/bing-search/cookie-io/page-detect 页面告警/super-ocr/x-intel X 监控）、domain-skills 站点知识（94 站，goto 自动提示）、升级轮换（bh upgrade）。当用户想自动化、抓取、测试或检查浏览器时使用。
+description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平台。两层 API：协议层（652 个 CDP 方法全类型直调）与语义层（goto_url/js/click_at_xy/snapshot_interactives/click_ref 等 snake_case 助手，tab 纪律、等待判官、自愈）。经 bh CLI 运行 JS 片段，长驻 Node daemon 持久会话，session、活动 target、全局变量跨调用保持。附着用户自己打开的浏览器（永不 spawn 用户面，专属 tab 铁律与人机共存）；另有自起无头引擎（bh headless，临时隔离、可克隆登录态、用完即杀）。含插件应用（web-fetch/google-search/medium-search/bing-search/cookie-io/page-detect 页面告警/super-ocr/x-intel X 监控/x-search X 检索收割）、domain-skills 站点知识（94 站，goto 自动提示）、升级轮换（bh upgrade）。当用户想自动化、抓取、测试或检查浏览器时使用。
 ---
 
 # browser：bh 平台技能
@@ -15,7 +15,17 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 **动手前硬性两步（先查再写，别重新发明既存知识）**：
 
 1. **站点任务先读站点知识**：目标站若在 94 站内，先 `bh skill site <段>`（如 `bh skill site github`）拿选择器与结构；`bh skill sites` 列全部。`goto_url()` 的返回也会自动提示 `domain_skills`（默认开启，`BH_DOMAIN_SKILLS=0` 关）
-2. **冷门交互先查配方**：下拉/shadow-DOM/拖拽/iframe/dialog/downloads 等机制动手前，先读 `interaction-skills/<机制>.md`（同目录 17 篇，一文件一机制）
+2. **冷门交互先查配方**：下拉/shadow-DOM/拖拽/iframe/dialog/downloads 等机制动手前，先读 `interaction-skills/<机制>.md`（同目录 17 篇，一文件一机制，索引见本文「配方索引」）
+
+**知识检索（rg/grep，在本文同目录即技能根下跑）**：
+
+```bash
+rg -il "checkout|支付" domain-skills/       # 站点知识反查（94 站全文，-i 忽略大小写）
+rg -n "shadow" interaction-skills/          # 机制配方反查（17 篇）
+rg -n "元素引用" primitives/                  # 原语契约反查（6 篇）
+```
+
+无 rg 用 `grep -rn` 等效；命中文件按渐进层级下钻。CDP 方法不落盘检索，用运行时探针（见「协议层速查」）。
 
 | 意图 | 入口 | 细节下钻 |
 | --- | --- | --- |
@@ -26,7 +36,8 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 | 页面打不开/登不上/空白 | `bh page-detect [url片段]`（七判 + 证据 + 建议） | `primitives/detect.md` |
 | 识别网页验证码图片 | `bh super-ocr [url片段]`（扫描定位 + OCR；不填写） | 应用层 |
 | 迁移登录态 | `bh cookie-io export\|import` | 应用层 |
-| 监控 X / 查收割库 | `bh x-intel start\|stop` / `x-intel search\|harvest` | 应用层 |
+| 监控 X 时间线 | `bh x-intel start\|stop`（常驻只附着） | 本文「应用」节 |
+| 查 X 库 / 全量收割 | `bh x-search <kw>` / `bh x-search harvest <q>` | 本文「应用」节 |
 | 冷门交互（下拉/shadow-DOM/拖拽…） | 直接写 CDP，先查配方 | `interaction-skills/<机制>.md` |
 | 页面里有哪些可点/可填 | `snapshot_interactives()` 出语义清单（role/name/box），`click_ref`/`fill_ref` 按 ref 动作 | `interaction-skills/element-refs.md` |
 | 诊断环境 | `bh doctor [--json]` | `primitives/observability.md` |
@@ -36,13 +47,13 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 
 ## 渐进层级（按需下钻，不必通读）
 
-| 层 | 何时读 | 载体 |
+| 层 | 何时读 | 载体与索引 |
 | --- | --- | --- |
-| L0 命令速查 | 每次用 | 本文下方 CLI 表 |
-| L1 原语契约 | 用到该原语时 | `primitives/attach.md` `search.md` `fetch-analyze.md` `detect.md` `observability.md` |
-| L2 CDP 机制 | 写协议调用遇到冷门交互时 | `interaction-skills/`（一文件一机制，17 篇） |
-| L3 站点知识 | 目标站在索引中时 | `goto_url()` 自动返回清单（默认开启）-> `bh skill site <段>` 通读再动手 |
-| L4 长跑应用 | 用 x-intel / 搜索 / 抓取 / 诊断 / cookie 迁移时 | 本文「应用」节 + workspace/apps/ |
+| L0 命令速查 | 每次用 | 本文 CLI 表 + 「应用」节（十应用索引） |
+| L1 语义层原语 | 用到该原语时 | 本文「语义层速查」+ `primitives/` 6 篇（attach / search / fetch-analyze / detect / observability / protocol） |
+| L2 协议层 CDP | 写协议直调时 | 本文「协议层速查」域族路由 + `primitives/protocol.md`（56 域全表、652 方法口径与运行时探针）；冷门交互先查配方：`interaction-skills/` 17 篇（本文「配方索引」） |
+| L3 站点知识 | 目标站在站名索引中时 | `goto_url()` 自动返回提示（默认开启）-> `bh skill site <段>` 通读再动手；站名总索引在本文 |
+| L4 应用 | 用监控 / 搜索 / 抓取 / 诊断 / cookie 迁移时 | 本文「应用」节（十应用）+ workspace/apps/ |
 
 ## CLI 命令（L0 速查）
 
@@ -79,11 +90,11 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 - `bh super-ocr ready`：引擎 + 当前 tab 探活
   - 错误决策：`NOT_FOUND` 引擎未装时先 `setup`；无匹配 tab 如实列出。`CAPTCHA|WALL` 交互式拼图/滑块请在窗口内人工完成，禁止当图片 OCR。`TIMEOUT` SDK 未就绪。`count=0` 是成功（页上没有图形验证码），不是失败。不自动填写、不自动重试。
 - `bh cookie-io export|import`：CDP 存取，默认拒绝全量导出（--domain/--all）
-- `bh x-intel [start|stop]`：X 监控（附着浏览器 + SQLite 去重库；worker 在 rmux `x-monitor`，由 supervisor-core 守护；关浏览器即暂停，只重拉 worker）
-- `bh x-intel search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器；关键词走 FTS5 + simple 分词器（中文 jieba 分词、词序无关、拉丁词拼音可搜；平台无二进制时回退 LIKE，信封 `via` 字段明示）；JSON `{_ok,_v,_ts,count,via,items}`（`--csv` 仍出 CSV）
-- `bh x-intel harvest <q> --from --to`：时间分片全量收割；完成打指标 `{_ok,inserted,slices,db}`
+- `bh x-intel [start|stop]`：X **监控**（唯一实例与命令 BH_NAME=x-intel；worker 在 rmux 会话 `x-intel`，由 supervisor-core 守护；关浏览器即暂停，只重拉 worker；SQLite 去重库 x_tweets.db）
+- `bh x-search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器、不需要 daemon；关键词走 FTS5 + simple 分词器（中文 jieba 分词、词序无关、拉丁词拼音可搜；平台无二进制时回退 LIKE，信封 `via` 字段明示）；JSON `{_ok,_v,_ts,count,via,items}`（`--csv` 仍出 CSV）
+- `bh x-search harvest <q> --from --to`：时间分片全量收割，自开专属后台 tab；完成打指标 `{_ok,inserted,slices,db}`；跑在自有按需 daemon（BH_NAME=x-search，空闲自退），监控实例不受影响
 
-  **x-intel 分道规则（D40）**：三条线互不干扰。① 监控只**附着**你已打开的 x.com 主页（`x.com` 根或 `/home`）时间线，6-8 秒轮询找它；**没有就等着，绝不自己新建 tab**，也不会去导航你的其它 x.com 页面（探针与收割的 eval 全按 targetId 钉死，不抢 daemon 活动 tab）。② `harvest` 是**自己新开一个后台 tab 去搜** x.com/search，跨分片复用、跑完自己关掉；若期间你接管了那个 tab 就保留不动。③ `search` 只读本地库，永不碰浏览器。要恢复监控：先在浏览器里打开 x.com 主页（日志/看板会显示「等待打开 x.com 主页 tab」）。
+  **两应用协作规则（D40/D46）**：① `x-intel` 只**附着**你已打开的 x.com 主页（`x.com` 根或 `/home`）时间线，6-8 秒轮询找它；**没有就等着，绝不自己新建 tab**，也不会去导航你的其它 x.com 页面（探针与收割的 eval 全按 targetId 钉死，不抢 daemon 活动 tab）。② `x-search harvest` **自己新开一个后台 tab** 去 x.com/search，跨分片复用、跑完自己关掉；若期间你接管那个 tab 就保留不动。③ `x-search` 本地查询永不碰浏览器。旧口令 `bh x-intel search|harvest` exit 2 并直接给出 `bh x-search` 等效命令。要恢复监控：先在浏览器里打开 x.com 主页（日志/看板会显示「等待打开 x.com 主页 tab」）。
 
 **插件契约**：`apps/<name>.mjs` 导出 `main(argv, ctx)` 返回退出码；ctx 注入 `{helpers, browserHelpers}`；`browser_helpers.mjs` 命名导出按名覆盖内置。开发标准见 repo 的 G002/R002。
 
@@ -91,7 +102,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 
 ```
 browser-workspace/          应用与资产运行面
-  apps/                     八应用 + x-intel/ 组件目录
+  apps/                     十应用 + x-intel/（监控组件）与 x-search/（检索组件）目录
   browser_helpers.mjs       站点级助手（可覆盖）
   domain-skills/            94 站知识库（只增不删）
   sdk/                      页面常驻 SDK
@@ -99,7 +110,7 @@ data/                       运行时数据：x_tweets.db / 日志 / 心跳 / �
 runtime/                    实例注册表 bh-<name>.port
 ```
 
-## domain-skills 站点索引（94 站）
+## domain-skills 站点索引（94 站，L3）
 
 aa, agentlist, alaska, amazon, archive-org, articulate-rise, arxiv, arxiv-bulk, atlas, bigbang-hr, bilibili, booking-com, BOSS-zhipin, capterra, centilebrain, claude-ai, coingecko, coinmarketcap, coursera, craigslist, crossref, ctrip, dev-to, duckduckgo, ebay, etsy, eventbrite, expedia, facebook, flipkart, framer, fred, g2, genius, github, glassdoor, gmail, goodreads, gutenberg, hackernews, howlongtobeat, hubspot, imdb, itch-io, job-boards, letterboxd, linkedin, loom, ly-com, macrotrends, manus, medium, metacritic, musicbrainz, nasa, news-aggregation, openalex, open-library, openstreetmap, package-registries, perplexity, polymarket, producthunt, pubmed, qbo, quora, rawg, reddit, rest-countries, sec-edgar, shopify-admin, soundcloud, spotify, stackoverflow, steam, substack, tasksquad-ai, thetechgeeks, tiktok, tradingview, trello, trustpilot, vercel, walmart, wayback-machine, weather, wehotel, wellfound, weread, world-bank, x, xiaohongshu, youtube, zillow
 
@@ -115,7 +126,11 @@ aa, agentlist, alaska, amazon, archive-org, articulate-rise, arxiv, arxiv-bulk, 
 
 ## 协议层速查
 
-`session` 全局量挂全部 CDP 域；`listPageTargets()` / `resolveWsUrl()` / `detectBrowsers()` / `session.onEvent(fn)` / `session.waitFor(method, pred, timeout)`。完整类型面在包内 `dist/generated.d.ts`。
+`session` 全局量挂全部 CDP 域：**56 域、667 条声明命令（15 条 redirect 别名已滤）= 652 个方法全类型直调**，另 237 事件。域族路由与全量域表见 `primitives/protocol.md`；`listPageTargets()` / `resolveWsUrl()` / `detectBrowsers()` / `session.onEvent(fn)` / `session.waitFor(method, pred, timeout)`。运行时方法探针：`bh 'Object.keys(session.Network)'`、`bh 'return String(session.Page.printToPDF)'`（源码即参数文档）；完整类型面在包内 `dist/generated.d.ts`。
+
+## 配方索引（interaction-skills/，17 篇）
+
+connection 连接与标签页可见性 · cookies · cross-origin-iframes 跨域 iframe（OOPIF） · dialogs 对话框 · downloads 下载 · drag-and-drop 拖拽 · dropdowns 下拉 · element-refs 版本化元素引用 · iframes 同源 iframe · network-requests 网络请求 · print-as-pdf 打印 PDF · screenshots 截图 · scrolling 滚动 · shadow-dom · tabs 标签页 · uploads 上传 · viewport 视口。一文件一机制；动手前先查对应配方。
 
 ## 环境变量（常用）
 
@@ -130,7 +145,7 @@ bh CLI ──HTTP /eval──> daemon（Harness + Session 单 WS）
   │                      └─ 看门狗 / 陈旧 session 自愈 / 事件环形缓冲（peek 可窥视）
   ├─ 应用进程（remoteHost 经 __bh_meta 复用同一 daemon）
   ├─ 用户的浏览器（附着：DevToolsActivePort 发现 + WS 直连 + Allow）
-  └─ rmux：supervisor-core 守护 page-detect / x-intel worker（x-monitor）→ x_tweets.db
+  └─ rmux：supervisor-core 守护 page-detect / x-intel worker（会话 x-intel）→ x_tweets.db
 ```
 
 ## 陷阱速查

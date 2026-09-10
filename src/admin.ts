@@ -246,9 +246,9 @@ export async function runDoctor(opts: { requireExistingDaemon?: boolean } = {}):
   }
   checks.push({ name: 'browser connections', ok: anyConnected, detail: conns.length ? conns.join(' | ') : 'none' });
 
-  // rmux (informational in P1; becomes a judged row when x-monitor ships)
+  // rmux (informational; resident-app sessions are judged in the dashboard)
   const rmux = rmuxInfo();
-  checks.push({ name: 'rmux', ok: true, detail: rmux.installed ? `${rmux.version ?? 'installed'} (${rmux.path})` : 'not installed (only needed for x-monitor)' });
+  checks.push({ name: 'rmux', ok: true, detail: rmux.installed ? `${rmux.version ?? 'installed'} (${rmux.path})` : 'not installed (only needed for the x-intel monitor)' });
 
   // ffmpeg (informational — video export degrades to an HTML slideshow without it)
   let ffmpegDetail = 'not installed (video export degrades to HTML slideshow)';

@@ -18,6 +18,8 @@
 | 封版 0.6.8（D41 第 2 轮） | 已完成 | 折叠按钮改分界线隐藏式后按同一口令封版：bump 0.6.8 + CHANGELOG 封段 + pack/install/skill sync + `bh upgrade` 七步滚动全绿 + 提交推送 + tag v0.6.8 与 Release | R001 封版八步 |
 | D42 瞬态探测误清附着面修复 | 已完成 | harness.ts 补 adoptedSessionId 判别：js(expr, tid) 瞬态 attach/detach 不再改写/清空持久 adoption 面，看板误报已脱离消除；回归测试锁 pinned-eval 模式，83 测全绿；M018 补第 2 轮 | 用户报障 2026-09-10 |
 | D44 本地库 FTS 分词搜索 | 已完成 | simple 二进制 + jieba 词典 vendored 入 assets/bin/simple（4 平台 ~4.2MB + 词典 ~11.2MB）；ensureSimpleFts（外容虚表 + 首建 rebuild + COUNT 对账自愈）；storeTweets 显式索引维护；search.mjs MATCH jieba_query 主路 + LIKE 兜底（via 字段）；6 单测 + 安装态真库 via:fts-simple 词序无关命中 | PRD D44 第 2 轮用户裁定 |
+| D45 SKILL 渐进分层重构 | 已完成 | 分层按资产实名；652 口径核实为 667 声明-15 redirect 别名=652 绑定（可复算链落 primitives/protocol.md）；SKILL 补配方索引 17 篇、协议域族路由、知识检索 rg/grep 块、十应用盘点 | PRD D45 |
+| D46 x 监控与搜索拆两应用 | 已完成 | x-intel 只留监控（唯一实例/命令/rmux 会话名对齐 x-intel）；x-search 独立（本地查询零 daemon，harvest 自有按需 daemon）；旧口令 CTA exit 2；RETIRED 清退旧组件 | PRD D46 |
 | page-detect tab 轮换误报降噪 | 已完成 | probeTab 捕获层对「No target with given id found」（list_tabs 与 attach 之间 tab 被关）静默跳过不记事件；轮换是状态不是错误（D27 哲学） | 用户报障 2026-09-10 21:55 看板消息 |
 
 ## 文档账实对齐任务清单（2026-09-10）
