@@ -34,6 +34,8 @@
 | 源码 | `src/*.test.ts` | 单元测试（node:test，82 用例） |
 | 脚本 | `scripts/gen.ts` | 代码生成：protocol/*.json -> generated.ts |
 | 数据 | `protocol/` | browser_protocol.json + js_protocol.json（上游协议快照） |
+| 图片 | `docs/images/` | README 引用截图（dashboard-board.png 看板导览） |
+| 验证 | `poc/` | PoC 产物（S 编号子目录，登记表 `poc/README.md`） |
 | 技能 | `skill/SKILL.md` | agent 技能入口（装到 ~/.claude/skills/browser/） |
 | 技能 | `skill/primitives/` | L1 原语契约 5 篇（attach/search/fetch-analyze/detect/observability） |
 | 技能 | `skill/interaction-skills/` | 17 篇纯 CDP 交互配方（一文件一机制） |
@@ -82,6 +84,8 @@
 | --- | --- | --- |
 | G001 | `docs/guide/G001-文档标准细则.md` | 命名/写作/六态/门禁/路径写法 |
 | G002 | `docs/guide/G002-插件应用开发标准.md` | 插件应用强制项/禁令/验收门禁/迁移分级（方法见 R002） |
+| G003 | `docs/guide/G003-五步工作流闭环.md` | 问题处置标准路径：定位/归类/修正/验证/提交，一步不跳 |
+| G004 | `docs/guide/G004-经验沉淀分级.md` | 成功与错误经验分治：proven/references/mistakes 落位、二犯升格、集成约束四形态 |
 | - | `docs/guide/template.md` | 方案文档写作骨架 |
 
 ## 八、错误速查（docs/mistakes/）
