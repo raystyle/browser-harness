@@ -68,6 +68,14 @@ export class Session implements Transport {
    */
   onCreateTarget?: (targetId: string) => void;
 
+  /**
+   * Fired when use() adopts a fresh page session. Symmetric with
+   * onCreateTarget (same transport layer): use() bypasses helpers and
+   * adoptSession, so the tracked-surface bookkeeping must see this lane too.
+   * Library users leave this unset.
+   */
+  onUse?: (sessionId: string, targetId: string) => void;
+
   /** Install a policy hook; see CallGuard. Library users leave this unset. */
   installCallGuard(guard: CallGuard): void {
     this.callGuard = guard;
@@ -171,6 +179,7 @@ export class Session implements Transport {
   async use(targetId: string): Promise<string> {
     const r = await this._call('Target.attachToTarget', { targetId, flatten: true }) as { sessionId: string };
     this.activeSessionId = r.sessionId;
+    this.onUse?.(r.sessionId, targetId);
     return r.sessionId;
   }
 

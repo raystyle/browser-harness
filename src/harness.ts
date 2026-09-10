@@ -52,6 +52,15 @@ export class Harness {
     // Target.createTarget reply joins the closeable set, including raw
     // session.domains evals that never pass the dispatcher.
     session.onCreateTarget = (tid) => { this.ownedTargets.add(tid); };
+    // The thin SDK's use() lane bypasses helpers and adoptSession — without
+    // this hook its attach event would be gated out as "transient" while the
+    // active session moved, splitting the instance in two: operate on the new
+    // tab, report/close the old one. Bookkeeping only (no domain enables, no
+    // marker): use() is the bare protocol primitive and keeps its contract.
+    session.onUse = (sessionId, targetId) => {
+      this.attachedTargetId = targetId;
+      this.adoptedSessionId = sessionId;
+    };
     // Browser-level death watch: a closed WS means the user's browser went
     // down — keep trying to re-attach (the toggle channel survives browser
     // restarts); each new WS connection re-prompts Allow, so the user must
@@ -140,6 +149,8 @@ export class Harness {
     this.discoveryOn = false; // fresh browser-level WS: discovery must be (re-)enabled
     this.pageAttachSessions.clear(); // prior attach sessions died with the old WS
     this.adoptedSessionId = undefined; // the adoption itself died with the old WS (eager daemons re-adopt in attachFirstPage)
+    this.attachedTargetId = undefined; // so did the surface it tracked — report unattached, never a dead tab
+    this.session.setActiveSession(undefined); // the old session id is dead on the new WS
     const wsEnv = process.env.BH_CDP_WS;
     if (wsEnv) {
       await this.session.connect({ wsUrl: wsEnv, timeoutMs: 5_000 });
@@ -310,8 +321,9 @@ export class Harness {
       // sessions (js(expr, targetId) attaches fresh per call — D40 pinned
       // evals) must not hijack it: before this gate x-intel's own probes
       // flipped the instance to "not attached" on the dashboard after every
-      // 6-8s tick. Without an adoption (lazy default / page-detect) the last
-      // page attach still wins — that IS those instances' tracking mechanism.
+      // 6-8s tick. Without an adoption (page-detect, or a lazy instance
+      // before its first page-level call adopts implicitly) the last page
+      // attach still wins — that IS those instances' tracking mechanism.
       if (!this.adoptedSessionId) this.attachedTargetId = ev.params.targetInfo.targetId;
       if (ev.params.sessionId) this.pageAttachSessions.set(String(ev.params.sessionId), ev.params.targetInfo.targetId);
     } else if (ev.method === 'Target.detachedFromTarget' && ev.params?.sessionId) {

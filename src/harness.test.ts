@@ -73,6 +73,24 @@ describe('attached-target tracking (browser events as source of truth)', () => {
     assert.equal(info?.url, 'https://tracked.example/');
   });
 
+  test('session.use AFTER an adoption still moves the tracked surface (B1: no split brain)', async () => {
+    const { harness, session, emit } = harnessWith({
+      'Target.attachToTarget': () => ({ sessionId: 's-use2' }),
+      'Target.getTargetInfo': (p: any) => ({ targetInfo: { targetId: p.targetId, url: 'https://u.example/', title: '' } }),
+    });
+    // An adoption already holds TAPP (daemon-level attach / implicit lazy adopt).
+    await harness.host.setSession('s-adopted', 'TAPP');
+    emit('Target.attachedToTarget', { sessionId: 's-adopted', targetInfo: { targetId: 'TAPP', type: 'page' } });
+    // The documented protocol-layer switch (skill tabs.md / bh --new-tab).
+    await session.use('TOTHER');
+    emit('Target.attachedToTarget', { sessionId: 's-use2', targetInfo: { targetId: 'TOTHER', type: 'page' } });
+    assert.equal(await harness.host.activeSessionId(), 's-use2');
+    assert.equal((await harness.host.currentTabInfo())?.targetId, 'TOTHER');
+    // The use-lane session is now the adoption: its own teardown clears.
+    emit('Target.detachedFromTarget', { sessionId: 's-use2' });
+    assert.equal(await harness.host.currentTabInfo(), null);
+  });
+
   test('iframe attaches never clobber the tracked page target', async () => {
     const { harness, emit } = harnessWith({
       'Target.getTargetInfo': (p: any) => ({ targetInfo: { targetId: p.targetId, url: 'https://page.example/', title: '' } }),
