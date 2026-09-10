@@ -9,4 +9,4 @@
 
 - `bh google-search <query> [--top N]` + `bh google-search pluck gs_search`
 - `bh bing-search <query> [--top N] [--page N]` + `bh bing-search pluck bs_search`（CAPTCHA\|WALL 不重试；cache=`bs_search`；合约 `_v` 与 `__bs.V` 同源 1.0.0）
-- `bh x-intel search <kw>|--recent|--since 1h|--stats`
+- `bh x-search <kw>|--recent|--since 1h|--stats`（本地 X 收割库检索；FTS5 分词见应用节）

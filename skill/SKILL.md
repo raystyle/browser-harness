@@ -94,6 +94,8 @@ rg -n "元素引用" primitives/                  # 原语契约反查（6 篇�
 - `bh x-search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器、不需要 daemon；关键词走 FTS5 + simple 分词器（中文 jieba 分词、词序无关、拉丁词拼音可搜；平台无二进制时回退 LIKE，信封 `via` 字段明示）；JSON `{_ok,_v,_ts,count,via,items}`（`--csv` 仍出 CSV）
 - `bh x-search harvest <q> --from --to`：时间分片全量收割，自开专属后台 tab；完成打指标 `{_ok,inserted,slices,db}`；跑在自有按需 daemon（BH_NAME=x-search，空闲自退），监控实例不受影响
 
+- `supervisor-core`（常驻，不直调）：守护 page-detect 与 x-intel worker 的心跳与会话自愈，看板应用卡可见其状态
+
   **两应用协作规则（D40/D46）**：① `x-intel` 只**附着**你已打开的 x.com 主页（`x.com` 根或 `/home`）时间线，6-8 秒轮询找它；**没有就等着，绝不自己新建 tab**，也不会去导航你的其它 x.com 页面（探针与收割的 eval 全按 targetId 钉死，不抢 daemon 活动 tab）。② `x-search harvest` **自己新开一个后台 tab** 去 x.com/search，跨分片复用、跑完自己关掉；若期间你接管那个 tab 就保留不动。③ `x-search` 本地查询永不碰浏览器。旧口令 `bh x-intel search|harvest` exit 2 并直接给出 `bh x-search` 等效命令。要恢复监控：先在浏览器里打开 x.com 主页（日志/看板会显示「等待打开 x.com 主页 tab」）。
 
 **插件契约**：`apps/<name>.mjs` 导出 `main(argv, ctx)` 返回退出码；ctx 注入 `{helpers, browserHelpers}`；`browser_helpers.mjs` 命名导出按名覆盖内置。开发标准见 repo 的 G002/R002。

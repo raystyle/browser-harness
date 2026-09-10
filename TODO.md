@@ -126,6 +126,8 @@
 | --- | --- | --- | --- |
 | 上游同步核查（js 仓 09-04 以来） | 已完成 2026-09-08 | video#757 免疫（ffmpeg 路线不走 Chrome 下载）；auth#755 部分免疫（cookie-io 补受控 JSON.parse）；update-flag 无关（py CLI）；raw-cdp#764 文档不冲突（TS 形态不同）。py 主仓停 09-04 基线无新 | 上游回流 |
 | x-intel 探测 eval 显式短超时 | 备查 | 瞬时页面挂起致单飞锁 429 约 21 秒自愈（12:23 实测，自然结算路径；D31 僵尸清算与 watch 自愈待命未触发）。频率升高（分钟级一次）再立项：探测 eval 带 ?timeout=20 级显式超时把瞬失窗口压到秒级 | 2026-09-08 观察 |
+| x 应用 lib.mjs 双份合并（候选 D47） | 备查 | codex 终审 S2：x-intel 与 x-search 的 lib.mjs 同源双拷贝已现漂移（探列表差一行），正是「双份并行必漂移」样本；修法方向：共享 lib 上提到 workspace 根或包内导出 | codex 终审 2026-09-10 |
+| upgrade 撞跑中 harvest（候选 D47） | 备查 | codex 终审 S6：升级滚动无 harvest 停/起配对，撞上正在跑的收割会打断（低概率）；方向：upgradePlan 探 x-search daemon 活性补配对步 | codex 终审 2026-09-10 |
 | x-intel 附着偏好实例化（候选 D43） | 备查 | D42 验证带出：spawnRepl 继承派生方 env，CLI/upgrade 重启的 x-intel daemon 丢 BH_ATTACH_URL_MATCH 变懒实例，看板已脱离误报会随每次升级滚动复现。修法方向：附着偏好落实例注册表，daemon 自读而非 env 继承 | D42 / 用户裁定是否立项 |
 | npm 发布（0.1.0） | 不做 | 2026-09-07 用户裁定不做；本地 `npm pack` + 全局 tgz 安装验收即可，不走 registry 发布 | ROADMAP |
 | bing-search 按 G002 升级 | 已完成 | D22：__bs + 两步契约 bs_search；实搜 5 条 title 非空 [实证: 2026-09-07] | G002 / PRD D22 |

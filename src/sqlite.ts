@@ -67,8 +67,10 @@ export function storeTweets(db: DatabaseSync, tweets: Tweet[]): number {
   const ins = db.prepare(`INSERT OR IGNORE INTO tweets (author, handle, text, posted_at, url, dedup_key, first_seen_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
   const upd = db.prepare(`UPDATE tweets SET last_seen_at = ? WHERE dedup_key = ?`);
   // FTS maintenance rides the writer: only rows actually inserted join the
-  // index (text is immutable — last_seen_at refreshes never touch it).
-  const fts = ftsTableExists(db) ? ensureSimpleFts(db) : false;
+  // index (text is immutable — last_seen_at refreshes never touch it). The
+  // writer only LOADS the tokenizer — drift healing (integrity-check is a
+  // full scan) belongs to the search side, not to every round.
+  const fts = ftsTableExists(db) ? loadSimpleTokenizer(db) : false;
   const ftsIns = fts ? db.prepare(`INSERT INTO tweets_fts(rowid, text) VALUES (?, ?)`) : null;
   const now = nowLocal();
   for (const t of tweets) {
@@ -123,13 +125,12 @@ function ftsTableExists(db: DatabaseSync): boolean {
 }
 
 /**
- * Load the simple tokenizer and stand up tweets_fts. Idempotent, and MUST run
- * before any tweets_fts use — even an existing vtable needs its tokenizer
- * registered per connection. Creates the external-content vtable and rebuilds
- * legacy rows on first sight. False = unavailable (no binary / no FTS5 /
- * load failed): search keeps the LIKE path.
+ * Load the extension + pin the jieba dict. Cheap (the jieba dictionary only
+ * parses on the first jieba_query call). MUST precede any tweets_fts use —
+ * even an existing vtable needs its tokenizer registered per connection.
+ * False = unavailable (no binary / no FTS5 / load failed).
  */
-export function ensureSimpleFts(db: DatabaseSync): boolean {
+export function loadSimpleTokenizer(db: DatabaseSync): boolean {
   const ext = simpleExtPath();
   if (!ext) return false;
   try {
@@ -137,15 +138,33 @@ export function ensureSimpleFts(db: DatabaseSync): boolean {
     // The tokenizer's jieba defaults to ./dict/ (CWD-relative) — pin it to
     // the vendored copy BEFORE the first jieba_query() constructs its Jieba.
     db.prepare('SELECT jieba_dict(?)').get(simpleDictDir());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Stand up tweets_fts and HEAL drift (search-side entry; the writer only
+ * needs loadSimpleTokenizer). Creates the external-content vtable and
+ * rebuilds legacy rows on first sight. Drift detection is FTS5's own
+ * integrity-check — COUNT(*) on an external-content vtable reads through
+ * to the content table, so a count comparison can never see drift.
+ */
+export function ensureSimpleFts(db: DatabaseSync): boolean {
+  if (!loadSimpleTokenizer(db)) return false;
+  try {
     if (!ftsTableExists(db)) {
       db.exec(`CREATE VIRTUAL TABLE tweets_fts USING fts5(text, content='tweets', content_rowid='id', tokenize='simple')`);
       db.exec(`INSERT INTO tweets_fts(tweets_fts) VALUES ('rebuild')`);
     } else {
-      // Drift heal: rows written while the index was absent (no binary on the
-      // writer's platform, manual sqlite edits) would silently miss. COUNT
-      // compare is two cheap scans; rebuild is the only correct repair.
-      const drift = db.prepare(`SELECT (SELECT COUNT(*) FROM tweets) - (SELECT COUNT(*) FROM tweets_fts) AS d`).get() as { d?: number } | undefined;
-      if (Number(drift?.d ?? 0) !== 0) db.exec(`INSERT INTO tweets_fts(tweets_fts) VALUES ('rebuild')`);
+      try {
+        db.exec(`INSERT INTO tweets_fts(tweets_fts, rank) VALUES ('integrity-check')`);
+      } catch {
+        // Rows written while the index was absent (no binary on the writer's
+        // platform, manual sqlite edits) — rebuild is the only correct repair.
+        db.exec(`INSERT INTO tweets_fts(tweets_fts) VALUES ('rebuild')`);
+      }
     }
     return true;
   } catch {

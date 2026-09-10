@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { openDb, storeTweets, ensureSimpleFts, simpleExtPath, type Tweet } from './sqlite.js';
+import { openDb, storeTweets, ensureSimpleFts, loadSimpleTokenizer, simpleExtPath, type Tweet } from './sqlite.js';
 
 /** Fresh tmp db per test (WAL sidecars go to the same dir; remove recursively). */
 function tmpDb(): { file: string; cleanup: () => void } {
@@ -72,6 +72,25 @@ describe('simple FTS (D44)', () => {
       const idx = db.prepare(`SELECT COUNT(*) c FROM tweets_fts`).get() as { c: number };
       assert.equal(rows.c, 1);
       assert.equal(idx.c, 1);
+      db.close();
+    } finally { cleanup(); }
+  });
+
+  test('content-side drift is detected by integrity-check and healed by rebuild', () => {
+    const { file, cleanup } = tmpDb();
+    try {
+      const db = openDb(file);
+      assert.ok(ensureSimpleFts(db));
+      storeTweets(db, [tw('自动化测试', 'https://x.com/5'), tw('浏览器知识', 'https://x.com/6')]);
+      // Simulate manual drift: delete a content row behind the index's back.
+      db.exec(`DELETE FROM tweets WHERE url = 'https://x.com/5'`);
+      // COUNT(*) on an external-content vtable reads through to tweets — the
+      // old count-compare heal could never see this. integrity-check does.
+      assert.ok(ensureSimpleFts(db)); // heals via rebuild
+      const gone = db.prepare(MATCH_SQL).get('自动化测试') as { c: number };
+      const kept = db.prepare(MATCH_SQL).get('浏览器') as { c: number };
+      assert.equal(gone.c, 0, 'stale index entry removed by the heal');
+      assert.equal(kept.c, 1);
       db.close();
     } finally { cleanup(); }
   });

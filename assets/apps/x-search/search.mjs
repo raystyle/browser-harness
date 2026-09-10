@@ -36,7 +36,7 @@ export async function main(argv = []) {
   const positional = argv.filter(a => !a.startsWith('-'));
   const val = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
 
-  const keyword = positional[0];
+  const keyword = (() => { const k = positional[0]; return typeof k === 'string' ? k.trim() : k; })();
   const author = val('--author');
   const since = val('--since');
   const recent = flags.includes('--recent');
@@ -47,7 +47,7 @@ export async function main(argv = []) {
   const limit = Number(val('--limit') ?? 20) || 20;
 
   const modes = [keyword, since, recent, stats].filter(Boolean).length;
-  if (modes === 0) {
+  if (modes === 0 || (keyword !== undefined && keyword === '')) {
     process.stderr.write('bh: usage: bh x-search <keyword> | --recent | --since <dur> | --stats  [--limit N] [--author X] [--group-by day|hour] [--csv]\n');
     return 2;
   }
