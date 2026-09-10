@@ -365,24 +365,36 @@ const PAGE = `<!doctype html>
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .rightside { flex: 0 0 34%; min-width: 360px; max-width: 520px; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px;
                min-height: 0; overflow-y: auto;
-               background: #ececec; border-left: 1px solid #d2d2d7; }
+               background: #ececec; }
   .railwrap { display: flex; flex-direction: column; min-height: 0; flex: 1; }
   .sourcebar { flex: 0 0 220px; width: 220px; padding: 8px 10px 12px; overflow-y: auto; min-height: 0;
                background: #e8e8ed; font-size: 13px; }
   .layout.nosource .sourcebar { display: none; }
-  /* NSSplitView seam: a plain 1px rule. The collapse toggles live in the
-     bottom bar (.dashbar), one per side column — click the seam is gone. */
-  .split { flex: 0 0 1px; background: #d2d2d7; }
-  .layout.nosource .split { display: none; }
   .layout.noright .rightside { display: none; }
-  .dashbar { flex: 0 0 30px; display: flex; align-items: center; justify-content: space-between;
-             padding: 0 10px; background: linear-gradient(#ededed, #e6e6e6);
-             border-top: 1px solid #c6c6c8; }
-  .barbtn { width: 34px; height: 19px; padding: 0; cursor: pointer; font-size: 10px; line-height: 1;
-            border: .5px solid rgba(0,0,0,.18); border-radius: 5px; color: #6e6e73;
-            background: linear-gradient(#fff, #f0f0f0); box-shadow: 0 .5px .5px rgba(0,0,0,.04);
-            display: inline-flex; align-items: center; justify-content: center; }
-  .barbtn:hover { color: #1d1d1f; background: linear-gradient(#fff, #e8e8e8); }
+  /* NSSplitView seam (D41): a hairline rule that CARRIES the collapse toggle.
+     The button is concealed (opacity 0) until the seam is hovered or the button
+     is keyboard-focused, so the divider itself is the only affordance; ::after
+     widens the hover/click target without widening the rule. A collapsed side
+     keeps a 16px gutter with its button faintly visible, so the way back stays
+     reachable. */
+  .split { flex: 0 0 1px; position: relative; background: #d2d2d7; }
+  .split::after { content: ''; position: absolute; top: 0; bottom: 0; left: -5px; right: -5px; }
+  /* a collapsed side keeps a 20px gutter (= the button's own width, so the
+     concealed toggle is never clipped by the window edge) */
+  .layout.nosource #leftsplit, .layout.noright #rightsplit { flex: 0 0 20px; background: #e8e8ed; }
+  .layout.nosource #leftsplit::after, .layout.noright #rightsplit::after { left: 0; right: 0; }
+  .splitbtn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2;
+              width: 20px; height: 20px; padding: 0; cursor: pointer; border-radius: 50%;
+              background: #fff; border: .5px solid rgba(0,0,0,.14); box-shadow: 0 1px 2px rgba(0,0,0,.08);
+              color: #6e6e73; font-size: 10px; line-height: 1;
+              display: flex; align-items: center; justify-content: center;
+              opacity: 0; transition: opacity .15s ease; }
+  /* reveal on hover, and on KEYBOARD focus only (:focus-visible) — a mouse click
+     must not leave the toggle sitting open after the column has moved away */
+  .split:hover .splitbtn, .splitbtn:focus-visible { opacity: 1; }
+  .splitbtn:hover { color: #1d1d1f; border-color: rgba(0,0,0,.24); }
+  .layout.nosource #leftsplit .splitbtn, .layout.noright #rightsplit .splitbtn { opacity: .5; }
+  .layout.nosource #leftsplit:hover .splitbtn, .layout.noright #rightsplit:hover .splitbtn { opacity: 1; }
   /* macOS disclosure groups: collapsed by default, triangle rotates open */
   .sourcebar summary { list-style: none; cursor: pointer; font-size: 11px; font-weight: 700; color: var(--label2);
                       text-transform: uppercase; letter-spacing: .5px; padding: 2px 0 6px;
@@ -498,10 +510,11 @@ const PAGE = `<!doctype html>
   </div>
   <div class="layout">
     <aside class="sourcebar" id="source"></aside>
-    <div class="split"></div>
+    <div class="split" id="leftsplit"><button class="splitbtn" id="tglleft" type="button" title="收起 / 展开左侧栏（部署信息）">◂</button></div>
     <div class="main">
       <div class="grid" id="root"><div class="card">连接中…</div></div>
     </div>
+    <div class="split" id="rightsplit"><button class="splitbtn" id="tglright" type="button" title="收起 / 展开右侧栏（应用监控与事件）">▸</button></div>
     <div class="rightside">
       <section>
         <h2 class="sec" id="appsec" style="display:none">应用监控信息</h2>
@@ -512,10 +525,6 @@ const PAGE = `<!doctype html>
         <div id="rail"></div>
       </section>
     </div>
-  </div>
-  <div class="dashbar">
-    <button class="barbtn" id="tglleft" type="button" title="收起 / 展开左侧栏（部署信息）">◂</button>
-    <button class="barbtn" id="tglright" type="button" title="收起 / 展开右侧栏（应用监控与事件）">▸</button>
   </div>
 </div>
 <script>
@@ -835,9 +844,11 @@ document.getElementById('wallbtn').onclick = async () => {
     if (p === 'granted') wallNotify('提醒已开启', 'bh 看板', '', '此后遇墙将以系统通知提醒你');
   } catch { /* prompt dismissed */ }
 };
-// Side columns collapse from the BOTTOM bar (D41): one arrow button per side,
-// each pointing the way the panel will move on the next click (◂ = fold away,
-// ▸ = bring back). State lives per browser in localStorage, server stateless.
+// Side columns collapse from the SEAM between the columns (D41): each divider
+// carries one CONCEALED arrow button (visible on hover / keyboard focus), and
+// the arrow points the way the panel will move on the next click (◂ = fold
+// away, ▸ = bring back). State lives per browser in localStorage, server
+// stateless.
 function setSrcbarHidden(hidden) {
   const layout = document.querySelector('.layout');
   const btn = document.getElementById('tglleft');

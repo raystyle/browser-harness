@@ -12,9 +12,10 @@
 | harvest 自开专属 tab 自收 | 已完成 | `new_tab()` 无参建全新 target（绕开空白页复用，防劫持用户空 tab）-> `goto_url` 搜索页 -> 跨分片复用 -> `finally` 关闭；被用户接管（URL 已非 x.com/search）则保留 | PRD D40 |
 | x-search 与文档同步 | 已完成 | search.mjs 头注写明三线分工；SKILL 应用节分道规则；G002 禁令与迁移分级；P0002 行为基线注记；README 一句话 | AGENTS 文档义务表 |
 | 验收：npm test + 引擎隔离实验 | 已完成 | 82 测全绿；引擎（`bh headless`）三景：无 home tab 只等不建 tab、有 home tab 附着收割零建 tab、harvest 自开自收归还 | G002 / R001 |
-| D41 看板双侧栏折叠 + 描述精炼 | 已完成 | dashboard.ts：`noright`/`nosource` 双类 + 底部控制栏两箭头按钮（左端管左栏、右端管右栏，箭头指向下一次点击的移动方向，状态存 localStorage）；x-intel/page-detect 描述收敛一句话 | 用户指令 2026-09-10 |
-| 验收：看板 DOM 探针 | 已完成 | 引擎打开看板 1440x900：两按钮 y=876 贴底；右栏 490 与 0 互换、左栏 220 与 0 互换、箭头 ◂/▸ 翻转、localStorage 键写入 | G002 / R001 |
+| D41 看板双侧栏折叠 + 描述精炼 | 已完成 | dashboard.ts：`noright`/`nosource` 双类 + 两条分界线各挂一个隐藏式箭头按钮（第 2 轮修正：底栏方案作废；默认 opacity 0，`:hover` 与 `:focus-visible` 揭示，收起侧 20px 槽位半透明；箭头指向下一次点击的移动方向，状态存 localStorage）；x-intel/page-detect 描述收敛一句话 | 用户指令 2026-09-10 |
+| 验收：看板 DOM 探针 | 已完成 | 引擎打开看板 1440x900：按钮圆心恒等于分界线中心（10/221、950/1430）且不越窗；hover 时 opacity 0 变 1、移开回 0；四轮点击 cls 往返 layout/nosource/noright，左栏 220 与 0、右栏 490 与 0 互换，箭头 ◂/▸ 翻转，localStorage 键写入 | G002 / R001 |
 | 封版 0.6.7（版本三件套 + 提交推送 + 本地轮换） | 已完成 | 用户拍板「发布个小版本 提交 推送 本地更新轮换」：bump 0.6.7 + CHANGELOG 封段 + pack/install/sync + `bh upgrade --offline --yes` 七步滚动终验全守护 0.6.7 看板 200；tag/Release 随提交推送 | R001 封版八步 |
+| 封版 0.6.8（D41 第 2 轮） | 已完成 | 折叠按钮改分界线隐藏式后按同一口令封版：bump 0.6.8 + CHANGELOG 封段 + pack/install/skill sync + `bh upgrade` 七步滚动全绿 + 提交推送 + tag v0.6.8 与 Release | R001 封版八步 |
 
 ## 文档账实对齐任务清单（2026-09-10）
 

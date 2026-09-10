@@ -18,7 +18,7 @@
 
 | 日期 | 进展 |
 | --- | --- |
-| 2026-09-10 | D41 看板形态：左右两列各自可折叠，折叠入口统一到最下方控制栏的两个箭头按钮（左端管左栏、右端管右栏，箭头指向下一次点击后的移动方向），状态存 localStorage；x-intel/page-detect 应用卡片描述收敛一句话。同日 0.6.7 封版（D40+D41 同版）：bump + CHANGELOG 封段 + pack/install/sync + `bh upgrade --offline --yes` 七步滚动终验全守护 0.6.7 看板 200，提交推送 + tag/Release |
+| 2026-09-10 | D41 看板形态（两轮）：左右两列各自可折叠；第 1 轮按钮放底部控制栏，第 2 轮用户修正为**分界线上的隐藏式按钮**（默认隐藏、悬停或键盘聚焦浮现；收起侧留槽位半透明可点回），箭头指向下一次点击后的移动方向，状态存 localStorage；x-intel/page-detect 应用卡片描述收敛一句话。同日 0.6.7 封版（D40+D41 第 1 轮同版）：bump + CHANGELOG 封段 + pack/install/sync + `bh upgrade --offline --yes` 七步滚动终验全守护 0.6.7 看板 200，提交推送 + tag/Release |
 | 2026-09-10 | D40 x-intel 分道：监控只附着（无 home tab 持续等待，永不自建 tab）+ 探针/收割 eval 钉 targetId 不抢活动 tab；harvest 自开专属 tab 自收自了；引擎隔离实验三景实证（无 home tab 只等不建 / 有 home tab 附着收割零建 tab / harvest 自开自收归还）；同版 0.6.6 资产滚动到本机安装态 |
 | 2026-09-10 | 文档账实全面对齐：git 全史 review（86 提交/16 tag）-> proven 补齐 P0002（附着模型与人机共存）/P0003（看板与守护面运营化）/P0004（插件应用生态深化）-> GOAL 历史补 D12-D38 -> INDEX 同步（归档节、engine.ts、测试数 82） |
 | 2026-09-09 | D38 收割风暴限流接线（0.6.4）+ 状态文案对齐（0.6.5）双发版；hs.d3fend.cn 看板事件混排诊断定案（x-monitor 只认 x.com，空白告警出自 page-detect watch）；封版规矩立档（版本三件套先问用户） |
@@ -38,7 +38,7 @@
 
 ## 进程
 
-- 0.6.7 封版（D40 x-intel 分道 + D41 看板双栏折叠）：bump/CHANGELOG/pack/install/skill sync/`bh upgrade --offline --yes` 七步滚动全绿（全守护 0.6.7、看板 200），代码与文档随提交推送，tag v0.6.7 + GitHub Release 附件浏览器侧 tgz
+- 0.6.7 封版（D40 x-intel 分道 + D41 看板双栏折叠）；0.6.8 封版（D41 第 2 轮：折叠按钮改为分界线上的隐藏式按钮）：两版均走 bump/CHANGELOG/pack/install/skill sync/`bh upgrade` 七步滚动全绿，代码与文档随提交推送，tag + GitHub Release 附件浏览器侧 tgz
 
 ## 历史
 
