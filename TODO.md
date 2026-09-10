@@ -130,7 +130,8 @@
 | x-intel 探测 eval 显式短超时 | 备查 | 瞬时页面挂起致单飞锁 429 约 21 秒自愈（12:23 实测，自然结算路径；D31 僵尸清算与 watch 自愈待命未触发）。频率升高（分钟级一次）再立项：探测 eval 带 ?timeout=20 级显式超时把瞬失窗口压到秒级 | 2026-09-08 观察 |
 | x 应用 lib.mjs 双份合并（候选 D47） | 备查 | codex 终审 S2：x-intel 与 x-search 的 lib.mjs 同源双拷贝已现漂移（探列表差一行），正是「双份并行必漂移」样本；修法方向：共享 lib 上提到 workspace 根或包内导出 | codex 终审 2026-09-10 |
 | upgrade 撞跑中 harvest（候选 D47） | 备查 | codex 终审 S6：升级滚动无 harvest 停/起配对，撞上正在跑的收割会打断（低概率）；方向：upgradePlan 探 x-search daemon 活性补配对步 | codex 终审 2026-09-10 |
-| x-intel 附着偏好实例化（候选 D43） | 备查 | D42 验证带出：spawnRepl 继承派生方 env，CLI/upgrade 重启的 x-intel daemon 丢 BH_ATTACH_URL_MATCH 变懒实例，看板已脱离误报会随每次升级滚动复现。修法方向：附着偏好落实例注册表，daemon 自读而非 env 继承 | D42 / 用户裁定是否立项 |
+| 纯 dev 场景 app lib 的 bhHome 与 daemon 不一致 | 备查 | codex 终审 S3b：dev 未 pin BH_HOME 时 assets/apps/lib.mjs 的 bhHome()（~/.config）与 daemon homeDir()（.bh-dev）分叉，D43 偏好文件在纯 dev 静默失效；安装态与 pin BH_HOME 后不受影响。方向：lib.mjs 检测 dev checkout 回退 .bh-dev | codex 终审 2026-09-10 |
+| x-intel 附着偏好实例化（候选 D43） | 已完成并出账 | D43 已于 0.7.0 交付（见上表），本行出账 | 原 2026-09-10 备查 | D42 验证带出：spawnRepl 继承派生方 env，CLI/upgrade 重启的 x-intel daemon 丢 BH_ATTACH_URL_MATCH 变懒实例，看板已脱离误报会随每次升级滚动复现。修法方向：附着偏好落实例注册表，daemon 自读而非 env 继承 | D42 / 用户裁定是否立项 |
 | npm 发布（0.1.0） | 不做 | 2026-09-07 用户裁定不做；本地 `npm pack` + 全局 tgz 安装验收即可，不走 registry 发布 | ROADMAP |
 | bing-search 按 G002 升级 | 已完成 | D22：__bs + 两步契约 bs_search；实搜 5 条 title 非空 [实证: 2026-09-07] | G002 / PRD D22 |
 | mp4 视频管线验证 | 已完成 | 2026-09-07：User PATH 探测 + ffmpeg 9 fps_mode；export mp4 与 contact sheet 冒烟通过 [实证: 1655B] | ROADMAP + M005 |

@@ -272,6 +272,39 @@ describe('dedicated-tab attach policy (D11 coexistence iron rule)', () => {
     }
   });
 
+  test('attach preference: env beats the file, and an empty env disables it', async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const home = mkdtempSync(path.join(tmpdir(), 'bh-attach2-'));
+    const savedHome = process.env.BH_HOME;
+    const savedMatch = process.env.BH_ATTACH_URL_MATCH;
+    delete process.env.BH_ATTACH_URL_MATCH;
+    process.env.BH_HOME = home;
+    try {
+      mkdirSync(path.join(home, 'runtime'), { recursive: true });
+      writeFileSync(path.join(home, 'runtime', 'bh-default.attach'), 'x.com');
+      // env value WINS over the file (picks the x.com tab, not the blank)
+      process.env.BH_ATTACH_URL_MATCH = 'special.example';
+      let r = await (withPages([
+        { targetId: 'TSPECIAL', url: 'https://special.example/', title: '' },
+        { targetId: 'TAPP', url: 'https://x.com/home', title: '' },
+        { targetId: 'TBLANK', url: 'about:blank', title: '' },
+      ]).harness as any).attachFirstPage();
+      assert.equal(r.targetId, 'TSPECIAL');
+      // env '' EXPLICITLY disables (lazy again: blank orphan preferred)
+      process.env.BH_ATTACH_URL_MATCH = '';
+      r = await (withPages([
+        { targetId: 'TAPP2', url: 'https://x.com/home', title: '' },
+        { targetId: 'TBLANK2', url: 'about:blank', title: '' },
+      ]).harness as any).attachFirstPage();
+      assert.equal(r.targetId, 'TBLANK2');
+    } finally {
+      if (savedHome === undefined) delete process.env.BH_HOME; else process.env.BH_HOME = savedHome;
+      if (savedMatch === undefined) delete process.env.BH_ATTACH_URL_MATCH; else process.env.BH_ATTACH_URL_MATCH = savedMatch;
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   test('NEVER picks a page the human is reading — prefers a blank orphan', async () => {
     const { harness, sent } = withPages([
       { targetId: 'TUSER', url: 'https://user-is-reading.example/', title: 'User Page' },

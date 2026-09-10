@@ -26,6 +26,16 @@ test('upgradePlan: alive x-search daemon stops before the swap, never restarted'
   assert.ok(!labels.some(l => l.includes('x-search daemon 重生') || l.includes('x-search start')), 'on-demand app: never restarted');
 });
 
+test('upgradePlan: drifted x-search in namedDaemons still never gets a restart step (B1 regression)', () => {
+  // The REAL path: drift lists x-search and the caller has NOT filtered it —
+  // the plan itself must not emit a generic respawn for an on-demand app.
+  const steps = upgradePlan(st({ drift: [d('default', '0.6.9'), d('x-search', '0.6.9')], xIntelRunning: false, dashboardAlive: false, namedDaemons: ['x-search'], xSearchDaemonAlive: true }));
+  const labels = steps.map(String);
+  assert.ok(!labels.some(l => l.includes('x-search daemon 重生')), 'no generic respawn for the on-demand daemon');
+  assert.ok(!labels.some(l => l.includes('x-search start')), 'never started');
+  assert.ok(labels.some(l => l.includes('x-search daemon 停')), 'stop-only branch owns it');
+});
+
 test('upgradePlan: x-intel down — never started, never "restored"', () => {
   const steps = upgradePlan(st({ drift: [d('default', null)], dashboardAlive: true }));
   assert.ok(!steps.some(s => s.startsWith('x-intel')));

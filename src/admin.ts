@@ -580,7 +580,12 @@ export function upgradePlan(s: UpgradeState): string[] {
   if (s.xSearchDaemonAlive) steps.push('x-search daemon 停（按需应用不重启：文件换新后下一次 harvest 自起）');
   steps.push('停 companions 会话（page-detect watch / supervisor-core；用户 stopped 状态尊重不拉）');
   steps.push('default daemon 重生（POST /quit + ensureDaemon；companions 幂等重拉到新版）');
-  for (const n of s.namedDaemons) steps.push(`${n} daemon 重生（companions 只附着已活 daemon 不换代码，须显式重启）`);
+  // x-search is the on-demand app: NEVER respawned by the generic loop (a
+  // bare respawn contradicts 只停不启 and can fail the whole upgrade) — the
+  // xSearchDaemonAlive stop-only branch owns it exclusively.
+  for (const n of s.namedDaemons.filter(n => n !== 'x-search')) {
+    steps.push(`${n} daemon 重生（companions 只附着已活 daemon 不换代码，须显式重启）`);
+  }
   if (s.dashboardAlive) steps.push('dashboard stop + 起新（页面版本握手自动重载）');
   if (s.xIntelRunning) steps.push('x-intel start（worker 复活，收割继续）');
   steps.push('终验：全部 daemon health.version 对版、看板 200');

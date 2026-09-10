@@ -215,6 +215,7 @@ const RETIRED_WORKSPACE_FILES: string[] = [
   'apps/x-core', 'apps/x-core.mjs',
   'apps/x-intel/supervisor.mjs',
   'apps/x-intel/search.mjs', 'apps/x-intel/harvest.mjs', // D46: search lanes moved to apps/x-search/
+  'apps/x-intel/lib.mjs', 'apps/x-search/lib.mjs', // D47a: merged into the shared apps/lib.mjs
 ];
 
 export function provisionWorkspace(workspaceDir: string, dryRun = false): { copied: string[]; retired: string[] } {
