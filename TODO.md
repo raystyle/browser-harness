@@ -11,7 +11,7 @@
 | GOAL/INDEX 刷新 | 已完成 | 锚点轮转、时间线与历史补 D12-D38；INDEX 归档节、engine.ts、82 用例、九应用口径 | 同上 |
 | oma trace 过程证据交叉 | 已完成 | 1000 块按 agent/日期/文件聚合：无未记录源码文件，化石（x-core/x-worker）已清；grok 27% 参与度与 trace 09-07 起的边界记 diary | 用户指令 |
 | PLAN/TODO/R001/ROADMAP 轮转 | 已完成 | 本清单 + PLAN 重写 + R001 封版第 0 步先问用户 + ROADMAP 补 0.4.x 至 0.6.x 里程碑 | AGENTS 四原语义务 |
-| oma trace 使用问题反馈 | 进行中 | 五项（--format json 不生效、1000 上限无 offset、sessions 无 --limit、trace 仅回溯 09-07、claude started 缺失）经 herdr 通道反馈 | 用户指令 2026-09-10 |
+| oma trace 使用问题反馈 | 已完成 | 五项经 herdr 委托 oma 仓 agent 当日全修并回执（随 oma 下版发布）；debug build 实测验收全过，timeline 1536 全量 review 收口 | 用户指令 2026-09-10 |
 
 ## 封版 0.3.0 任务清单
 
