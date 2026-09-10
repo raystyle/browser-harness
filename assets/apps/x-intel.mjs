@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { importDist, bhHome, dataDir } from './x-intel/lib.mjs';
+import { importDist, bhHome, dataDir } from './lib.mjs';
 
 export const description = '监控你已打开的 X 主页时间线并自动收割新帖入库。';
 export const resident = true;
@@ -75,6 +75,13 @@ export async function main(argv = [], ctx) {
     if (sub === 'stop' || sub === 'close') return await stop();
 
     process.env.BH_NAME = process.env.BH_NAME ?? 'x-intel';
+    // D43: persist the attach preference so ANY respawner (bare bh --restart,
+    // upgrade rolling) reproduces the eager attach — env inheritance breaks
+    // on every respawn that is not the app's own worker.
+    try {
+      mkdirSync(path.join(bhHome(), 'runtime'), { recursive: true });
+      writeFileSync(path.join(bhHome(), 'runtime', 'bh-x-intel.attach'), 'x.com');
+    } catch { /* best-effort */ }
     const { detectBrowsers } = await importDist('session.js');
     const { Rmux } = await importDist('rmux.js');
 

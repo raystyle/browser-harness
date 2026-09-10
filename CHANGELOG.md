@@ -2,6 +2,12 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.7.0] - 2026-09-10
+
+- **附着偏好实例化（D43）**：`BH_ATTACH_URL_MATCH` 此前靠派生进程 env 继承，CLI/upgrade 重生的 x-intel daemon 丢偏好变懒实例，看板「已脱离」误报随每次升级滚动复现。现在偏好落实例注册表旁的 `runtime/bh-<name>.attach` 文件（x-intel start 时写入），daemon 自读；env 变量仍优先（空串显式关）。裸 `bh --name x-intel --restart` 不再丢 eager 附着
+- **应用共享 lib 合一（D47a）**：x-intel 与 x-search 各自携带的 lib.mjs 同源双拷贝已现漂移，合并为 `apps/lib.mjs` 单份（page-detect/super-ocr 借道的旧路径一并改指），旧拷贝进 RETIRED 清退
+- **upgrade 避让 x-search daemon（D47b）**：x-search 非常驻（daemon 按需自起、空闲自退），升级只在它恰好活着（近期跑过 harvest）时先停再换文件，**不重启不拉起**，下一次 harvest 自然自起；防止换新中途 harvest 自起旧码 daemon 与安装竞速
+
 ## [0.6.9] - 2026-09-10
 
 - **x-intel 本地库分词搜索（D44，wangfenjin/simple）**：本地 x_tweets.db 关键词搜索此前是整串 LIKE，中文词序不同即漏。现在走 FTS5 + vendored simple tokenizer（jieba 分词、CJK 逐字索引、拉丁词拼音可搜）：`sqlite.ts` 新增 `ensureSimpleFts`（外容 FTS5 虚表 + 首建 rebuild + COUNT 对账漂移自愈）与 `simpleExtPath` 平台二进制定位（win/linux x64、osx x64/arm64，Release v0.7.1 预编译，随包分发 ~15MB）；`storeTweets` 显式维护索引（去重不重索引）；关键词搜索走 `MATCH jieba_query(?)`（D46 后命令为 `bh x-search <kw>`），平台无二进制或加载失败自动回退 LIKE，信封 `via: fts-simple|like|scan` 明示。6 条 FTS 单测（词序无关命中/存量 rebuild/增量维护/去重/降级契约/二进制在位），安装态真库 2257 帖实测 `via: fts-simple` 且命中两条 LIKE 盲区帖

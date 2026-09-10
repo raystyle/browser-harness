@@ -17,6 +17,15 @@ test('upgradePlan: full stack running — teardown top-down, restore bottom-up',
   assert.equal(steps.at(-1), '终验：全部 daemon health.version 对版、看板 200');
 });
 
+test('upgradePlan: alive x-search daemon stops before the swap, never restarted', () => {
+  const steps = upgradePlan(st({ drift: [d('default', '0.6.9')], xIntelRunning: false, dashboardAlive: false, namedDaemons: [], xSearchDaemonAlive: true }));
+  const labels = steps.map(String);
+  const stopIdx = labels.findIndex(l => l.includes('x-search daemon 停'));
+  assert.ok(stopIdx >= 0, 'stop step present');
+  assert.ok(labels.findIndex(l => l.includes('default daemon 重生')) > stopIdx, 'stopped before the swap');
+  assert.ok(!labels.some(l => l.includes('x-search daemon 重生') || l.includes('x-search start')), 'on-demand app: never restarted');
+});
+
 test('upgradePlan: x-intel down — never started, never "restored"', () => {
   const steps = upgradePlan(st({ drift: [d('default', null)], dashboardAlive: true }));
   assert.ok(!steps.some(s => s.startsWith('x-intel')));

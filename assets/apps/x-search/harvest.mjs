@@ -21,7 +21,7 @@
  */
 
 import path from 'node:path';
-import { importDist, bhHome, dataDir } from './lib.mjs';
+import { importDist, bhHome, dataDir } from '../lib.mjs';
 
 process.env.BH_NAME = process.env.BH_NAME ?? 'x-search';
 const WORKSPACE = process.env.BH_BROWSER_WORKSPACE ?? path.join(bhHome(), 'browser-workspace');

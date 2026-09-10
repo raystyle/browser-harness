@@ -41,6 +41,18 @@ export function configDir(): string { return ensureDir(path.join(homeDir(), 'con
 export function runtimeDir(): string { return ensureDir(path.join(homeDir(), 'runtime')); }
 export function tmpDir(): string { return ensureDir(path.join(homeDir(), 'tmp')); }
 
+/**
+ * Per-instance attach preference (D43): BH_ATTACH_URL_MATCH persisted as a
+ * file so ANY respawner (bare `bh --name x-intel --restart`, upgrade rolling)
+ * reproduces the app daemon's eager attach — env inheritance only works for
+ * the spawner that set it (the app's own worker), which is exactly why the
+ * dashboard showed a spurious「已脱离」after every upgrade. Empty/absent file
+ * = no preference; the env var still wins when present ('' explicitly off).
+ */
+export function attachPrefFile(): string {
+  return path.join(runtimeDir(), `bh-${instanceName()}.attach`);
+}
+
 export function workspaceDir(): string {
   const pinned = process.env.BH_BROWSER_WORKSPACE || process.env.BH_AGENT_WORKSPACE; // latter = legacy alias
   if (pinned) return path.resolve(pinned);

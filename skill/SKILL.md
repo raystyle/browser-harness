@@ -136,7 +136,7 @@ connection 连接与标签页可见性 · cookies · cross-origin-iframes 跨域
 
 ## 环境变量（常用）
 
-`BH_HOME`（默认 ~/.config/browser-harness）、`BH_NAME`（多实例端口派生）、`BH_CDP_URL`/`BH_CDP_WS`（钉死连接目标）、`BH_ATTACH_URL_MATCH`（应用钉面）、`BH_IDLE_TIMEOUT`（daemon 空闲自退，只关自身连接）、`BH_EVAL_TIMEOUT`（CLI `/eval` 秒，默认 300）、`BH_DOMAIN_SKILLS`、`BH_IPC/NAVIGATE/SCREENSHOT_TIMEOUT`、`X_*`（x-intel 族）。
+`BH_HOME`（默认 ~/.config/browser-harness）、`BH_NAME`（多实例端口派生）、`BH_CDP_URL`/`BH_CDP_WS`（钉死连接目标）、`BH_ATTACH_URL_MATCH`（应用钉面；应用 start 时落 `runtime/bh-<name>.attach` 持久化，CLI/upgrade 重生不丢）、`BH_IDLE_TIMEOUT`（daemon 空闲自退，只关自身连接）、`BH_EVAL_TIMEOUT`（CLI `/eval` 秒，默认 300）、`BH_DOMAIN_SKILLS`、`BH_IPC/NAVIGATE/SCREENSHOT_TIMEOUT`、`X_*`（x-intel 族）。
 
 ## 架构一图流
 

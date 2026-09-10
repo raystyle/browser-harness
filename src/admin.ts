@@ -145,6 +145,7 @@ export const ATTACH_POLICY: Record<string, string> = {
   "bh '<js>'": 'attach：在活动 target 上执行（上一个 switch_tab/use 保持的；默认落点由专属 tab 铁律决定）',
   'app (plugins)': 'attach：ensure_app_tab 按 host 一 app 一 tab 复用，不存在才 new_tab（后台创建不抢焦点）',
   "bh --new-tab '<js>'": 'explicit：new_tab(about:blank) 后附着执行，tab 保持打开（新原语）',
+  'attach 偏好': 'BH_ATTACH_URL_MATCH 环境变量优先（空串显式关），否则读实例注册表旁的 runtime/bh-<name>.attach 文件（D43：CLI/upgrade 重生的 daemon 不再丢应用的附着钉面）',
   'user tab': 'explicit 授权：调用方显式 switch_tab(targetId)/set_session 指定用户 tab 才可操作，daemon 永不自动选中用户正在看的页面',
 };
 
@@ -561,6 +562,9 @@ export type UpgradeState = {
   dashboardAlive: boolean;
   /** drifted named daemons other than default/x-intel (e.g. page-detect) */
   namedDaemons: string[];
+  /** the on-demand x-search daemon is alive (a harvest ran recently; D47:
+   *  stop it before the swap so a mid-harvest respawn can't race the install) */
+  xSearchDaemonAlive?: boolean;
 };
 
 /**
@@ -573,6 +577,7 @@ export type UpgradeState = {
 export function upgradePlan(s: UpgradeState): string[] {
   const steps: string[] = [];
   if (s.xIntelRunning) steps.push('x-intel stop（按序拆栈：先写 stopped 防 supervisor 重拉，再停 worker 与专属 daemon）');
+  if (s.xSearchDaemonAlive) steps.push('x-search daemon 停（按需应用不重启：文件换新后下一次 harvest 自起）');
   steps.push('停 companions 会话（page-detect watch / supervisor-core；用户 stopped 状态尊重不拉）');
   steps.push('default daemon 重生（POST /quit + ensureDaemon；companions 幂等重拉到新版）');
   for (const n of s.namedDaemons) steps.push(`${n} daemon 重生（companions 只附着已活 daemon 不换代码，须显式重启）`);

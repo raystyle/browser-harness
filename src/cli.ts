@@ -621,7 +621,18 @@ function buildProgram(): Command {
       })();
       const dashboardAlive = await alive(`http://127.0.0.1:${DASHBOARD_PORT}`);
       const namedDaemons = drift.map(d => d.name).filter(n => n !== 'default' && n !== 'x-intel');
-      const plan = admin.upgradePlan({ drift, xIntelRunning, dashboardAlive, namedDaemons });
+      // The on-demand x-search daemon (spawned by a harvest) must not survive
+      // into the file swap — and a mid-upgrade harvest must not respawn it.
+      const xSearchDaemonAlive = await (async () => {
+        try {
+          const { readInstanceRecord } = await import('./paths.js');
+          const rec = readInstanceRecord('x-search');
+          if (!rec) return false;
+          const h = await admin.health(rec.port, 600);
+          return h?.ok === true && h.name === 'x-search';
+        } catch { return false; }
+      })();
+      const plan = admin.upgradePlan({ drift, xIntelRunning, dashboardAlive, namedDaemons, xSearchDaemonAlive });
       console.log(`检测到漂移：${drift.map(d => `${d.name}(${d.version ?? 'pre-0.4.0'})`).join(' ')} -> ${admin.selfVersion()}`);
       if (!guardWrite(`滚动 ${plan.length - 1} 步`, { yes: opts.yes, dryRun: opts.dryRun })) {
         plan.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
@@ -644,6 +655,11 @@ function buildProgram(): Command {
       });
       let n = 1;
       if (xIntelRunning) await step(n++, 'x-intel stop', () => run(['x-intel', 'stop']));
+      if (xSearchDaemonAlive) await step(n++, 'x-search daemon 停', async () => {
+        const { readInstanceRecord } = await import('./paths.js');
+        const rec = readInstanceRecord('x-search');
+        await fetch(`http://127.0.0.1:${rec?.port}/quit`, { method: 'POST' }).catch(() => {});
+      });
       await step(n++, '停 companions 会话', async () => {
         const rmux = new Rmux();
         await rmux.killSession('page-detect').catch(() => {});

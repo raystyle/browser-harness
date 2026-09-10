@@ -23,7 +23,7 @@
 import { appendFileSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { importDist, bhHome, dataDir } from './lib.mjs';
+import { importDist, bhHome, dataDir } from '../lib.mjs';
 
 process.env.BH_NAME = process.env.BH_NAME ?? 'x-intel';
 // The x-intel daemon's working surface is the USER's existing x.com tab:

@@ -152,7 +152,7 @@ async function watchLoop(h, intervalSec) {
   let lastSweepLog = 0;
   // Shared control-plane predicate (dist host.ts): exact host+port match, so
   // the watcher never probes the board yet never skips a lookalike local app.
-  const { importDist } = await import('./x-intel/lib.mjs');
+  const { importDist } = await import('./lib.mjs');
   const { isDashboardUrl } = await importDist('host.js');
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -249,7 +249,7 @@ async function watchStart(intervalSec) {
   writeStatus({ state: 'running', interval: intervalSec, metrics: [{ label: '巡检节奏', value: `${intervalSec} 秒/轮` }] });
   let via = 'detached';
   try {
-    const { importDist } = await import('./x-intel/lib.mjs');
+    const { importDist } = await import('./lib.mjs');
     const { Rmux } = await importDist('rmux.js');
     const r = new Rmux();
     if (r.version()) {
@@ -282,7 +282,7 @@ async function watchStart(intervalSec) {
     // rmux path failed. A racing supervisor beat may have just (re)spawned
     // the session — that IS the watcher; never bare-spawn a second copy.
     try {
-      const { importDist } = await import('./x-intel/lib.mjs');
+      const { importDist } = await import('./lib.mjs');
       const { Rmux } = await importDist('rmux.js');
       if (await new Rmux().hasSession(WATCH_SESSION)) {
         console.log(JSON.stringify({ _ok: true, _v: VERSION, _ts: new Date().toISOString(), watching: true, supervised: 'rmux:' + WATCH_SESSION, note: 'session appeared (supervisor race) — adopted' }, null, 1));
@@ -317,7 +317,7 @@ async function watchStop() {
   writeStatus({ state: 'stopped', metrics: [], event: undefined });
   let killed = false;
   try {
-    const { importDist } = await import('./x-intel/lib.mjs');
+    const { importDist } = await import('./lib.mjs');
     const { Rmux } = await importDist('rmux.js');
     const r = new Rmux();
     if (r.version() && await r.hasSession(WATCH_SESSION)) {

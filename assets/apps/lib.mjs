@@ -1,8 +1,12 @@
 /**
- * Locate the running bh package's dist/ via the instance registry — the
- * daemon records its own dist path, so provisioned workspace plugins can
- * import package internals (agentChrome/rmux/sqlite) without a package
- * manager in scope. Shared by every x-* app.
+ * Shared app bootstrap (D47: ONE copy for every app — x-intel and x-search
+ * carried duplicate libs that had already drifted). Locates the running bh
+ * package's dist/ via the instance registry — the daemon records its own
+ * dist path, so provisioned workspace apps can import package internals
+ * (agentChrome/rmux/sqlite) without a package manager in scope.
+ *
+ * Lives at apps/lib.mjs (workspace root of apps): import from an app shell
+ * as './lib.mjs', from a component dir as '../lib.mjs'.
  */
 
 import { readFileSync } from 'node:fs';
@@ -21,10 +25,10 @@ export function bhHome() {
     ?? path.join(homedir(), '.config', 'browser-harness');
 }
 
-/** dist dir from env override, else daemon records, else the provision stamp. */
+/** dist dir from env override, else any known instance's daemon record, else the provision stamp. */
 export function distDir() {
   if (process.env.BH_DIST) return process.env.BH_DIST;
-  for (const name of ['default', 'x-intel']) {
+  for (const name of ['default', 'x-intel', 'x-search']) {
     try {
       const rec = JSON.parse(readFileSync(path.join(bhHome(), 'runtime', name === 'default' ? 'bh.port' : `bh-${name}.port`), 'utf8'));
       if (rec.dist) return rec.dist;

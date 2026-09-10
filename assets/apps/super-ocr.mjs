@@ -173,7 +173,7 @@ async function setup() {
 async function attachTab(h, want) {
   // Shared control-plane predicate (dist host.ts) — exact host+port match,
   // honors BH_DASHBOARD_PORT; never mistake a lookalike local app for the board.
-  const { importDist } = await import('./x-intel/lib.mjs');
+  const { importDist } = await import('./lib.mjs');
   const { isDashboardUrl } = await importDist('host.js');
   if (want) {
     const tabs = await h.list_tabs(false);

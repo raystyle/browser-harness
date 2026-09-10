@@ -15,7 +15,7 @@
  */
 
 import path from 'node:path';
-import { importDist, bhHome, dataDir } from './lib.mjs';
+import { importDist, bhHome, dataDir } from '../lib.mjs';
 
 const WORKSPACE = process.env.BH_BROWSER_WORKSPACE ?? path.join(bhHome(), 'browser-workspace');
 const DB_PATH = process.env.X_DB ?? path.join(dataDir(), 'x_tweets.db');

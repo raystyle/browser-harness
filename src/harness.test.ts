@@ -1,5 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 
 import { Harness } from './harness.js';
 import { Session } from './session.js';
@@ -241,6 +242,33 @@ describe('dedicated-tab attach policy (D11 coexistence iron rule)', () => {
     } finally {
       if (saved === undefined) delete process.env.BH_ATTACH_URL_MATCH;
       else process.env.BH_ATTACH_URL_MATCH = saved;
+    }
+  });
+
+  test('attach preference persists per instance in the registry file (D43)', async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const home = mkdtempSync(path.join(tmpdir(), 'bh-attach-'));
+    const savedHome = process.env.BH_HOME;
+    const savedMatch = process.env.BH_ATTACH_URL_MATCH;
+    delete process.env.BH_ATTACH_URL_MATCH;
+    process.env.BH_HOME = home;
+    try {
+      mkdirSync(path.join(home, 'runtime'), { recursive: true });
+      writeFileSync(path.join(home, 'runtime', 'bh-default.attach'), 'x.com');
+      const { harness, sent } = withPages([
+        { targetId: 'TAPP', url: 'https://x.com/home', title: '' },
+        { targetId: 'TBLANK', url: 'about:blank', title: '' },
+      ]);
+      // NO env var — the respawned daemon reads the persisted file instead
+      // (the exact CLI/upgrade restart that used to lose the eager attach).
+      const r = await (harness as any).attachFirstPage();
+      assert.equal(r.targetId, 'TAPP');
+      assert.equal(sent.some(m => m.method === 'Target.createTarget'), false);
+    } finally {
+      if (savedHome === undefined) delete process.env.BH_HOME; else process.env.BH_HOME = savedHome;
+      if (savedMatch === undefined) delete process.env.BH_ATTACH_URL_MATCH; else process.env.BH_ATTACH_URL_MATCH = savedMatch;
+      rmSync(home, { recursive: true, force: true });
     }
   });
 

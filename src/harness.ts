@@ -11,7 +11,8 @@
  * is out of bounds.
  */
 
-import { tmpDir as bhTmpDir, workspaceDir, instanceName } from './paths.js';
+import { tmpDir as bhTmpDir, workspaceDir, instanceName, attachPrefFile } from './paths.js';
+import { readFileSync } from 'node:fs';
 import { MARKER, MARKER_PREFIX, isDashboardUrl, type CdpEvent, type SeqEvent, type Host } from './host.js';
 import { Session, detectBrowsers, getBrowserCandidates } from './session.js';
 import { clamp, envNumber } from './env.js';
@@ -196,7 +197,18 @@ export class Harness {
 
   /** Named app daemons pin their surface eagerly; the default instance stays lazy. */
   private shouldAttachEagerly(): boolean {
-    return !!process.env.BH_ATTACH_URL_MATCH;
+    return !!this.attachUrlMatch();
+  }
+
+  /**
+   * The instance's attach preference: env var first (tests / explicit runs;
+   * '' explicitly disables), else the persisted per-instance file (D43 — a
+   * CLI- or upgrade-respawned daemon no longer loses its app's pin).
+   */
+  private attachUrlMatch(): string | undefined {
+    const env = process.env.BH_ATTACH_URL_MATCH;
+    if (env !== undefined) return env === '' ? undefined : env;
+    try { return readFileSync(attachPrefFile(), 'utf8').trim() || undefined; } catch { return undefined; }
   }
 
   /** Poll <url>/json/version for webSocketDebuggerUrl. 403 → the Allow-popup instruction. */
@@ -257,7 +269,7 @@ export class Harness {
     // Preference order after that: blank > marked > create. Marked tabs often
     // belong to ANOTHER app daemon (x-intel marks x.com); the default instance
     // must never steal an app's working tab just because it carries the horse.
-    const want = process.env.BH_ATTACH_URL_MATCH;
+    const want = this.attachUrlMatch();
     let pick = (want && pages.find(t => t.url.includes(want))?.targetId)
       ?? pages.find(t => this.isReusableBlank(t.url))?.targetId
       ?? pages.find(t => (t.title ?? '').startsWith(MARKER))?.targetId;
