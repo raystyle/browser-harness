@@ -24,7 +24,7 @@ bh 'await session.Page.navigate({url: "https://example.com"})'
 
 ```bash
 # 方式一：Release 包（推荐）
-npm install -g ./browser-harness-ts-0.6.3.tgz    # 从 Releases 下载
+npm install -g ./browser-harness-ts-*.tgz    # 从 Releases 下载最新版
 # 方式二：源码
 git clone https://github.com/raystyle/browser-harness.git && cd browser-harness
 npm install && npm run build && npm pack && npm install -g ./browser-harness-ts-*.tgz
@@ -84,7 +84,8 @@ bh upgrade --yes    # 检测老守护进程 -> 下载安装 -> 稳定轮换 -> �
 
 ## 深入
 
-- **[skill/SKILL.md](skill/SKILL.md)**：完整命令面、意图路由、94 站点知识库索引、17 篇交互配方（agent 与人类的共同入口）
+- **[skill/SKILL.md](skill/SKILL.md)**：完整命令面、意图路由、站点知识库、交互配方（agent 与人类的共同入口）
+- **[INDEX.md](INDEX.md)**：全仓唯一索引：源码文件职责、方案/研究/规范/踩坑编号表，找任何东西先进这里
 - **[docs/](docs/)**：架构归档、研究报告、踩坑速查
 - **[Releases](https://github.com/raystyle/browser-harness/releases)**：每个版本的 tgz 与变更日志
 

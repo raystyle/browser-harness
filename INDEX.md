@@ -39,7 +39,7 @@
 | 技能 | `skill/SKILL.md` | agent 技能入口（装到 ~/.claude/skills/browser/） |
 | 技能 | `skill/primitives/` | L1 原语契约 5 篇（attach/search/fetch-analyze/detect/observability） |
 | 技能 | `skill/interaction-skills/` | 17 篇纯 CDP 交互配方（一文件一机制） |
-| 资产 | `assets/` | domain-skills 94 站知识库 + apps 九应用（web-fetch/google-search/bing-search/cookie-io/page-detect/medium-search/x-intel 全家桶/super-ocr/supervisor-core）+ sdk |
+| 资产 | `assets/` | domain-skills 94 站知识库 + apps 九应用（清单与职责见 README「内置应用」节，本表不枚举防双份漂移）+ sdk |
 
 ## 三、方案归档（docs/proven/）
 
@@ -70,7 +70,7 @@
 | S004 | `docs/research/S004-GitHub发版与分支合并标准流程.md` | GitHub Flow/Git Flow/Trunk-Based 三模型与合并三式、分支保护、发版自动化调研；本仓对照：单人 trunk 直推为合法形态，维持手动封版八步，仅即刻采纳 main 禁 force push |
 | S005 | `docs/research/S005-BrowserUsePi上游动态研究.md` | 上游团队蒸馏作 @browser_use/pi 研究：Pi Mono + 持久 V8 REPL + raw CDP、砍语义层走涌现式 helper；与本仓架构对照（Node/TS/CDP/持久会话方向一致，helper 哲学分歧）、harness 维护观察与可吸收项 |
 
-登记表：`docs/research/README.md`。S001 为 D11 架构转向的首个研究场景。
+本节为 S 编号唯一登记处（原 docs/research/README.md 双份登记表已删，2026-09-10）。S001 为 D11 架构转向的首个研究场景。
 
 ## 六、references 现役流程（docs/references/）
 
