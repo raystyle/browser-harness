@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { upgradePlan, type DaemonDrift, type UpgradeState } from './admin.js';
+import { upgradePlan, ridesGenericRespawn, type DaemonDrift, type UpgradeState } from './admin.js';
 
 const d = (name: string, version: string | null): DaemonDrift => ({ name, port: 9900, version });
 const st = (o: Partial<UpgradeState>): UpgradeState => ({ drift: [], xIntelRunning: false, dashboardAlive: false, namedDaemons: [], ...o });
@@ -24,6 +24,17 @@ test('upgradePlan: alive x-search daemon stops before the swap, never restarted'
   assert.ok(stopIdx >= 0, 'stop step present');
   assert.ok(labels.findIndex(l => l.includes('default daemon 重生')) > stopIdx, 'stopped before the swap');
   assert.ok(!labels.some(l => l.includes('x-search daemon 重生') || l.includes('x-search start')), 'on-demand app: never restarted');
+});
+
+test('on-demand filter contract: the executor predicate equals the plan predicate (B1)', () => {
+  // The executor re-enacts the plan with its OWN filter — this locks the two
+  // to the same shared set so they can never diverge again.
+  const all = ['default', 'x-intel', 'x-search', 'page-detect', 'headless-engine'];
+  for (const n of all) {
+    const planRespawns = upgradePlan(st({ namedDaemons: [n] })).some(step => String(step).startsWith(`${n} daemon 重生（companions`)); // the generic-loop step shape; default/x-intel have dedicated steps
+    assert.equal(planRespawns, ridesGenericRespawn(n), `plan vs executor respawn agreement for ${n}`);
+  }
+  assert.ok(!ridesGenericRespawn('x-search'));
 });
 
 test('upgradePlan: drifted x-search in namedDaemons still never gets a restart step (B1 regression)', () => {

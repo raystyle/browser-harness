@@ -556,6 +556,25 @@ export function selfBuildTime(): number {
   try { return statSync(path.join(DIST_DIR, 'cli.js')).mtimeMs; } catch { return 0; }
 }
 
+/**
+ * On-demand app daemons (D47b): NEVER ride the generic named-daemon respawn —
+ * a bare respawn contradicts 只停不启 and can fail the whole upgrade. BOTH the
+ * plan and the CLI executor MUST filter through this set (the executor does
+ * not consume the plan's step list; it re-enacts).
+ */
+export const ON_DEMAND_DAEMONS = new Set(['x-search']);
+
+/**
+ * The generic named-daemon respawn predicate: everything EXCEPT the instances
+ * with dedicated plan steps (default has its own rebirth; x-intel has its
+ * stop/start pair) and on-demand apps. BOTH the plan and the CLI executor
+ * consume THIS predicate — the executor re-enacts the plan rather than
+ * consuming its step list, so the two must never diverge (B1).
+ */
+export function ridesGenericRespawn(name: string): boolean {
+  return name !== 'default' && name !== 'x-intel' && !ON_DEMAND_DAEMONS.has(name);
+}
+
 export type UpgradeState = {
   drift: DaemonDrift[];
   xIntelRunning: boolean;
@@ -580,10 +599,7 @@ export function upgradePlan(s: UpgradeState): string[] {
   if (s.xSearchDaemonAlive) steps.push('x-search daemon 停（按需应用不重启：文件换新后下一次 harvest 自起）');
   steps.push('停 companions 会话（page-detect watch / supervisor-core；用户 stopped 状态尊重不拉）');
   steps.push('default daemon 重生（POST /quit + ensureDaemon；companions 幂等重拉到新版）');
-  // x-search is the on-demand app: NEVER respawned by the generic loop (a
-  // bare respawn contradicts 只停不启 and can fail the whole upgrade) — the
-  // xSearchDaemonAlive stop-only branch owns it exclusively.
-  for (const n of s.namedDaemons.filter(n => n !== 'x-search')) {
+  for (const n of s.namedDaemons.filter(ridesGenericRespawn)) {
     steps.push(`${n} daemon 重生（companions 只附着已活 daemon 不换代码，须显式重启）`);
   }
   if (s.dashboardAlive) steps.push('dashboard stop + 起新（页面版本握手自动重载）');

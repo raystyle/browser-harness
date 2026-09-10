@@ -620,7 +620,9 @@ function buildProgram(): Command {
         } catch { return false; }
       })();
       const dashboardAlive = await alive(`http://127.0.0.1:${DASHBOARD_PORT}`);
-      const namedDaemons = drift.map(d => d.name).filter(n => n !== 'default' && n !== 'x-intel'); // x-search's on-demand rule lives IN upgradePlan (single authority)
+      // The executor re-enacts the plan (it does not consume the step list) —
+      // the respawn set MUST come from the same shared predicate (B1).
+      const namedDaemons = drift.map(d => d.name).filter(admin.ridesGenericRespawn);
       // The on-demand x-search daemon (spawned by a harvest) must not survive
       // into the file swap — and a mid-upgrade harvest must not respawn it.
       const xSearchDaemonAlive = await (async () => {
