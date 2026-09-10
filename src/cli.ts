@@ -116,6 +116,11 @@ async function postEval(code: string): Promise<void> {
     process.exit(EXIT.ok);
   } else {
     if (body.length > 0) process.stderr.write(body.endsWith('\n') ? body : body + '\n');
+    // D39 CTA: a ReferenceError from the passthrough almost always means a
+    // mistyped command or helper name — point at both fixes instead of the
+    // bare stack (which reads like a program bug).
+    const undef = body.match(/ReferenceError: (\S+) is not defined/);
+    if (undef) process.stderr.write(`bh: 「${undef[1]}」未定义；若是命令输错，\`bh --help\` 看命令表；若是 JS 片段，检查变量/助手名拼写\n`);
     process.exit(EXIT.fail);
   }
 }
@@ -278,6 +283,18 @@ async function legacyPassthrough(argv: string[]): Promise<void> {
 // --- structured commands (Commander, D29) -------------------------------------
 
 const KNOWN_COMMANDS = new Set(['sessions', 'rmux', 'dashboard', 'doctor', 'skill', 'skills', 'record', 'video', 'run', 'upgrade', 'headless', 'hl']);
+
+/**
+ * D39 retired command names: they once were real commands, so old muscle memory
+ * types them and the legacy passthrough turns them into a JS ReferenceError
+ * (misleading — looks like a program bug). Intercept with a CTA — the exact
+ * runnable command rebuilt from the user's own args — plus a usage exit code.
+ * Bare JS snippets can never collide: a retired word standing alone as the
+ * whole first argv token is never valid JS the agent would send.
+ */
+const RETIRED_COMMANDS = new Map<string, { to: string; note: string }>([
+  ['engine', { to: 'headless', note: '0.6.2 起改名，别名 bh hl' }],
+]);
 
 function pkgVersion(): string {
   return (JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { version: string }).version;
@@ -874,6 +891,14 @@ async function main(): Promise<void> {
   // routing (e.g. `bh google-search <q> --top 5`) — zero interface change for
   // the agent/plugin contract; Commander never mangles those args.
   const first = argv[0];
+  const retired = first !== undefined ? RETIRED_COMMANDS.get(first) : undefined;
+  if (retired !== undefined) {
+    const rest = argv.slice(1).join(' ');
+    process.stderr.write(`bh: 「${first}」已不是命令（${retired.note}）。\n`);
+    process.stderr.write(`bh: 试：\`bh ${retired.to}${rest ? ` ${rest}` : ''}\`\n`);
+    process.exitCode = 2; // usage error (G002 exit table)
+    return;
+  }
   if (first !== undefined && !first.startsWith('-') && !KNOWN_COMMANDS.has(first)) {
     await warnVersionDrift(argv);
     await legacyPassthrough(argv);
