@@ -30,19 +30,23 @@
 | 源码 | `src/video.ts` | 视频管线：帧 -> 编辑梗概 -> 合成 mp4 |
 | 源码 | `src/sqlite.ts` | x_tweets 存储（node:sqlite），DDL 承 Python 原版 |
 | 源码 | `src/rmux.ts` | rmux CLI 驱动（x-monitor 自愈监督，非官方 SDK） |
-| 源码 | `src/*.test.ts` | 单元测试（node:test，74 用例） |
+| 源码 | `src/engine.ts` | 自起无头 Chrome 引擎：临时 profile + port 0 + DevToolsActivePort 发现，句柄防孤儿（D37，`bh headless`） |
+| 源码 | `src/*.test.ts` | 单元测试（node:test，82 用例） |
 | 脚本 | `scripts/gen.ts` | 代码生成：protocol/*.json -> generated.ts |
 | 数据 | `protocol/` | browser_protocol.json + js_protocol.json（上游协议快照） |
 | 技能 | `skill/SKILL.md` | agent 技能入口（装到 ~/.claude/skills/browser/） |
 | 技能 | `skill/primitives/` | L1 原语契约 5 篇（attach/search/fetch-analyze/detect/observability） |
 | 技能 | `skill/interaction-skills/` | 17 篇纯 CDP 交互配方（一文件一机制） |
-| 资产 | `assets/` | domain-skills 94 站知识库 + apps 八应用（web-fetch/google-search/bing-search/cookie-io/page-detect/medium-search/x-intel 全家桶/super-ocr）+ sdk |
+| 资产 | `assets/` | domain-skills 94 站知识库 + apps 九应用（web-fetch/google-search/bing-search/cookie-io/page-detect/medium-search/x-intel 全家桶/super-ocr/supervisor-core）+ sdk |
 
 ## 三、方案归档（docs/proven/）
 
 | 编号 | 文件 | 主题 |
 | --- | --- | --- |
 | P0001 | `docs/proven/P0001-Node移植与平台补齐.md` | browser-harness-js 的 Node/TS 移植 + P1-P6 平台能力补齐全案 |
+| P0002 | `docs/proven/P0002-附着模型转向与人机共存.md` | D11 架构转向（移除 spawn 家族、附着用户浏览器、专属 tab 铁律）+ D27 共存容错 |
+| P0003 | `docs/proven/P0003-看板与守护面运营化.md` | D12-D21 看板/通知/页面守护/初始化/supervisor-core + D29-D31/D34 CLI 工程化/升级轮换/锁清算/只读旁路 |
+| P0004 | `docs/proven/P0004-插件应用生态深化.md` | D06/D07 标准族 + D15/D22/D23/D25/D33 应用线 + D32/D35/D36/D37 护栏与能力 + D38 收割稳定 |
 
 ## 四、项目日记（docs/diary/）
 
@@ -52,6 +56,7 @@
 | 2026-09-05 | D11 附着模型转向实战、detect 应用、交互原语定稿 |
 | 2026-09-07 | D12 看板、D13 结构重组、x-intel 合一、0.2.0 封版本地安装 |
 | 2026-09-08 | 双 review（内部 + codex 经 herdr）、0.3.0 封版、herdr skill 首战 |
+| 2026-09-09 | D38 收割风暴限流（0.6.4）+ 状态文案对齐（0.6.5）、hs.d3fend.cn 看板事件混排诊断、封版规矩立档 |
 
 ## 五、研究文档（docs/research/）
 
