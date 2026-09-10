@@ -89,8 +89,8 @@ export async function main(argv = [], ctx) {
   const { createHelpers } = await importDist('helpers.js');
   const sqlite = await importDist('sqlite.js');
   await ensureDaemon();
-  const { readFileSync } = await import('node:fs');
-  const port = Number(process.env.BH_PORT ?? (JSON.parse(readFileSync(path.join(bhHome(), 'runtime', `bh-${process.env.BH_NAME ?? 'x-search'}.port`), 'utf8')).port));
+  const { instanceName, readInstanceRecord } = await importDist('paths.js');
+  const port = Number(process.env.BH_PORT ?? readInstanceRecord(instanceName())?.port);
   const h = createHelpers(remoteHost(port));
 
   const t0 = Date.parse(from);

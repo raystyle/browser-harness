@@ -330,10 +330,14 @@ async function waitingText(h) {
   return '等待打开 x.com 主页 tab（只附着，不自建）';
 }
 
-/** The x-intel daemon's port: registry record is the authority. */
+/** The x-intel daemon's port: registry record is the authority (the default
+ *  instance's record is bh.port, not bh-default.port — readInstanceRecord
+ *  knows the mapping). */
 async function daemonPort() {
   if (process.env.BH_PORT) return Number(process.env.BH_PORT);
-  const rec = JSON.parse(readFileSync(path.join(bhHome(), 'runtime', `bh-${process.env.BH_NAME ?? 'x-intel'}.port`), 'utf8'));
+  const { instanceName, readInstanceRecord } = await importDist('paths.js');
+  const rec = readInstanceRecord(instanceName());
+  if (!rec) throw new Error(`no registry record for instance "${instanceName()}" — run the app start first`);
   return rec.port;
 }
 
