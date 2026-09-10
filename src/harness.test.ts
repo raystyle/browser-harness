@@ -108,6 +108,30 @@ describe('attached-target tracking (browser events as source of truth)', () => {
     emit('Target.detachedFromTarget', { sessionId: 's-probe' }); // the tracked one
     assert.equal(await harness.host.currentTabInfo(), null);
   });
+
+  test('a transient probe on the adopted target never clears it (D40 pinned-eval pattern)', async () => {
+    const { harness, emit } = harnessWith({
+      'Target.getTargetInfo': (p: any) => ({ targetInfo: { targetId: p.targetId, url: 'https://x.com/home', title: '' } }),
+    });
+    // Daemon-level adoption (attachFirstPage / switch_tab / set_session all
+    // funnel into adoptSession), plus the attach event Chrome really emits.
+    await harness.host.setSession('s-adopted', 'TAPP');
+    emit('Target.attachedToTarget', { sessionId: 's-adopted', targetInfo: { targetId: 'TAPP', type: 'page' } });
+    // The monitor lane's probe: js(expr, TAPP) = fresh attach -> eval -> detach,
+    // on the SAME target the daemon adopted. Before the fix this cleared the
+    // tracked target after every 6-8s tick (dashboard showed 已脱离 while
+    // the daemon held a live session).
+    emit('Target.attachedToTarget', { sessionId: 's-probe', targetInfo: { targetId: 'TAPP', type: 'page' } });
+    emit('Target.detachedFromTarget', { sessionId: 's-probe' });
+    assert.equal((await harness.host.currentTabInfo())?.targetId, 'TAPP');
+    // A probe on a DIFFERENT page must not hijack the adopted surface either.
+    emit('Target.attachedToTarget', { sessionId: 's-probe2', targetInfo: { targetId: 'TOTHER', type: 'page' } });
+    emit('Target.detachedFromTarget', { sessionId: 's-probe2' });
+    assert.equal((await harness.host.currentTabInfo())?.targetId, 'TAPP');
+    // The adopted session's own teardown (tab closed) is the one real detach.
+    emit('Target.detachedFromTarget', { sessionId: 's-adopted' });
+    assert.equal(await harness.host.currentTabInfo(), null);
+  });
 });
 
 describe('marker discipline', () => {  test('navigation on the active session re-stamps the horse marker', async () => {

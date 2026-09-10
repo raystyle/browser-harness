@@ -16,6 +16,7 @@
 | 验收：看板 DOM 探针 | 已完成 | 引擎打开看板 1440x900：按钮圆心恒等于分界线中心（10/221、950/1430）且不越窗；hover 时 opacity 0 变 1、移开回 0；四轮点击 cls 往返 layout/nosource/noright，左栏 220 与 0、右栏 490 与 0 互换，箭头 ◂/▸ 翻转，localStorage 键写入 | G002 / R001 |
 | 封版 0.6.7（版本三件套 + 提交推送 + 本地轮换） | 已完成 | 用户拍板「发布个小版本 提交 推送 本地更新轮换」：bump 0.6.7 + CHANGELOG 封段 + pack/install/sync + `bh upgrade --offline --yes` 七步滚动终验全守护 0.6.7 看板 200；tag/Release 随提交推送 | R001 封版八步 |
 | 封版 0.6.8（D41 第 2 轮） | 已完成 | 折叠按钮改分界线隐藏式后按同一口令封版：bump 0.6.8 + CHANGELOG 封段 + pack/install/skill sync + `bh upgrade` 七步滚动全绿 + 提交推送 + tag v0.6.8 与 Release | R001 封版八步 |
+| D42 瞬态探测误清附着面修复 | 已完成 | harness.ts 补 adoptedSessionId 判别：js(expr, tid) 瞬态 attach/detach 不再改写/清空持久 adoption 面，看板误报已脱离消除；回归测试锁 pinned-eval 模式，83 测全绿；M018 补第 2 轮 | 用户报障 2026-09-10 |
 
 ## 文档账实对齐任务清单（2026-09-10）
 
@@ -121,6 +122,7 @@
 | --- | --- | --- | --- |
 | 上游同步核查（js 仓 09-04 以来） | 已完成 2026-09-08 | video#757 免疫（ffmpeg 路线不走 Chrome 下载）；auth#755 部分免疫（cookie-io 补受控 JSON.parse）；update-flag 无关（py CLI）；raw-cdp#764 文档不冲突（TS 形态不同）。py 主仓停 09-04 基线无新 | 上游回流 |
 | x-intel 探测 eval 显式短超时 | 备查 | 瞬时页面挂起致单飞锁 429 约 21 秒自愈（12:23 实测，自然结算路径；D31 僵尸清算与 watch 自愈待命未触发）。频率升高（分钟级一次）再立项：探测 eval 带 ?timeout=20 级显式超时把瞬失窗口压到秒级 | 2026-09-08 观察 |
+| x-intel 附着偏好实例化（候选 D43） | 备查 | D42 验证带出：spawnRepl 继承派生方 env，CLI/upgrade 重启的 x-intel daemon 丢 BH_ATTACH_URL_MATCH 变懒实例，看板已脱离误报会随每次升级滚动复现。修法方向：附着偏好落实例注册表，daemon 自读而非 env 继承 | D42 / 用户裁定是否立项 |
 | npm 发布（0.1.0） | 不做 | 2026-09-07 用户裁定不做；本地 `npm pack` + 全局 tgz 安装验收即可，不走 registry 发布 | ROADMAP |
 | bing-search 按 G002 升级 | 已完成 | D22：__bs + 两步契约 bs_search；实搜 5 条 title 非空 [实证: 2026-09-07] | G002 / PRD D22 |
 | mp4 视频管线验证 | 已完成 | 2026-09-07：User PATH 探测 + ffmpeg 9 fps_mode；export mp4 与 contact sheet 冒烟通过 [实证: 1655B] | ROADMAP + M005 |

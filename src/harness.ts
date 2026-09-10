@@ -87,6 +87,11 @@ export class Harness {
    *  attach behind. Cleared on reconnect (sessions die with the WS). */
   private pageAttachSessions = new Map<string, string>();
 
+  /** The persistent adopted session (attachFirstPage/switch_tab/set_session
+   *  → adoptSession). While set, transient probe sessions (js(expr, targetId)
+   *  attaches fresh per call) must not touch the tracked surface — see onEvent. */
+  private adoptedSessionId: string | undefined;
+
   private guardBrowserLifetime(method: string, params: any): void {
     if (method === 'Browser.close') {
       throw new Error('blocked: Browser.close — the attached browser is the user\'s; bh never closes it. Close it yourself in the browser if you want it gone.');
@@ -134,6 +139,7 @@ export class Harness {
   async connect(): Promise<void> {
     this.discoveryOn = false; // fresh browser-level WS: discovery must be (re-)enabled
     this.pageAttachSessions.clear(); // prior attach sessions died with the old WS
+    this.adoptedSessionId = undefined; // the adoption itself died with the old WS (eager daemons re-adopt in attachFirstPage)
     const wsEnv = process.env.BH_CDP_WS;
     if (wsEnv) {
       await this.session.connect({ wsUrl: wsEnv, timeoutMs: 5_000 });
@@ -265,6 +271,7 @@ export class Harness {
     const old = this.session.getActiveSession();
     this.session.setActiveSession(sessionId);
     this.attachedTargetId = targetId;
+    this.adoptedSessionId = sessionId;
     const jobs: Promise<unknown>[] = [];
     if (old) jobs.push(this.rawCall('Network.disable', {}, old).catch(() => {}));
     for (const m of ['Page.enable', 'DOM.enable', 'Runtime.enable', 'Network.enable']) {
@@ -299,15 +306,28 @@ export class Harness {
     // tracking it here keeps attachedTargetId from going stale. Page-type
     // only: iframe attaches (js() isolation sessions) must not clobber it.
     if (ev.method === 'Target.attachedToTarget' && ev.params?.targetInfo?.type === 'page') {
-      this.attachedTargetId = ev.params.targetInfo.targetId;
+      // While a persistent adoption holds the surface, transient probe
+      // sessions (js(expr, targetId) attaches fresh per call — D40 pinned
+      // evals) must not hijack it: before this gate x-intel's own probes
+      // flipped the instance to "not attached" on the dashboard after every
+      // 6-8s tick. Without an adoption (lazy default / page-detect) the last
+      // page attach still wins — that IS those instances' tracking mechanism.
+      if (!this.adoptedSessionId) this.attachedTargetId = ev.params.targetInfo.targetId;
       if (ev.params.sessionId) this.pageAttachSessions.set(String(ev.params.sessionId), ev.params.targetInfo.targetId);
     } else if (ev.method === 'Target.detachedFromTarget' && ev.params?.sessionId) {
-      const detached = this.pageAttachSessions.get(String(ev.params.sessionId));
-      this.pageAttachSessions.delete(String(ev.params.sessionId));
-      if (detached !== undefined && detached === this.attachedTargetId) {
-        // A transient probe detaches after scanning (page-detect watches every
-        // tab). Clear the tracked target so the instance reports "not attached"
-        // until the next implicit page-level call re-attaches lazily.
+      const sid = String(ev.params.sessionId);
+      const detached = this.pageAttachSessions.get(sid);
+      this.pageAttachSessions.delete(sid);
+      // Only the adopted session's own teardown (tab closed) ends the
+      // surface. A transient probe's detach never clears it — that probe
+      // is js()'s normal attach/eval/detach rhythm, not a lost surface.
+      // Without an adoption, transient detaches still clear: that is how
+      // page-detect goes idle after scanning a tab, and how a dead attach
+      // unsticks.
+      if (sid === this.adoptedSessionId) {
+        this.attachedTargetId = undefined;
+        this.adoptedSessionId = undefined;
+      } else if (detached !== undefined && detached === this.attachedTargetId && !this.adoptedSessionId) {
         this.attachedTargetId = undefined;
       }
     } else if (ev.method === 'Target.targetInfoChanged'
@@ -336,7 +356,11 @@ export class Harness {
       activeSessionId: async () => this.session.getActiveSession(),
       activeTargetId: async () => this.attachedTargetId,
       setSession: async (sessionId, targetId) => {
-        if (!sessionId || !targetId) { this.session.setActiveSession(undefined); return; }
+        if (!sessionId || !targetId) {
+          this.session.setActiveSession(undefined);
+          this.adoptedSessionId = undefined; // explicit unadopt: transient tracking resumes
+          return;
+        }
         await this.adoptSession(sessionId, targetId);
       },
       currentTabInfo: async () => {
