@@ -12,7 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { importDist, bhHome, dataDir } from './x-intel/lib.mjs';
 
-export const description = '持续监控 X 时间线并自动收割新帖到本地数据库。';
+export const description = '监控你已打开的 X 主页时间线并自动收割新帖入库。';
 export const resident = true;
 export const selfManaged = true; // dedicated BH_NAME=x-intel daemon; never the default
 
@@ -89,7 +89,7 @@ export async function main(argv = [], ctx) {
     }
     writeStatus({
       state: 'running',
-      metrics: [{ label: '检测节奏', value: '5 秒探测 · 触发后 10 秒内随机抓取' }],
+      metrics: [{ label: '检测节奏', value: '6-8 秒随机探测 · 只附着已打开的 x.com 主页，触发后 10 秒内随机抓取' }],
     });
     await rmux.ensureSession(WORKER_SESSION, {
       cwd: bhHome(),

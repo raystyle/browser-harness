@@ -48,7 +48,7 @@ bh 'await goto_url("https://example.com")'     # 导航（daemon 记住状态）
 bh 'return await snapshot_interactives()'      # 页面可点/可填元素清单
 echo 'return 1+1' | bh                         # 管道；heredoc 多语句也行
 bh web-fetch https://medium.com/some-article   # 抓正文（自动过反爬）
-bh x-intel start                               # 后台监控你的 X 时间线
+bh x-intel start                               # 后台监控你的 X 时间线（只附着你打开的 x.com 主页，没有就等着，不抢 tab）
 bh engine start                                # 自起无头 Chrome 引擎（临时、隔离、用完即杀）
 ```
 
@@ -80,7 +80,7 @@ bh upgrade --yes    # 检测老守护进程 -> 下载安装 -> 稳定轮换 -> �
 
 ## 内置应用
 
-`web-fetch`（正文抓取）· `google/bing/medium-search`（两步契约搜索）· `page-detect`（页面被 Cloudflare/验证码拦截时弹窗告警）· `x-intel`（X 时间线监控入库）· `super-ocr`（验证码图识别）· `cookie-io`（登录态迁移）· `supervisor-core`（常驻应用自愈），全部经 `bh <name>` 调用，墙与人机验证如实报告，不硬闯。
+`web-fetch`（正文抓取）· `google/bing/medium-search`（两步契约搜索）· `page-detect`（页面被 Cloudflare/验证码拦截时弹窗告警）· `x-intel`（附着你已打开的 X 主页时间线入库；搜索命令自开专属 tab）· `super-ocr`（验证码图识别）· `cookie-io`（登录态迁移）· `supervisor-core`（常驻应用自愈），全部经 `bh <name>` 调用，墙与人机验证如实报告，不硬闯。
 
 ## 深入
 

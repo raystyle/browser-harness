@@ -6,6 +6,14 @@
  * the scroll-harvest per slice; the timeline only renders the first article
  * AFTER a scroll, and 3 consecutive no-growth scrolls = slice bottom.
  *
+ * Lane rule (D40) — search owns its tab, the monitor never touches it. This
+ * run creates ONE fresh background tab for x.com/search, reuses it across
+ * slices and closes it when the run ends. It never navigates a tab it did not
+ * create (the user's own x.com tab — and even their empty new tab — is off
+ * limits) and every eval is PINNED to its own targetId, so the attach-only
+ * monitor (worker.mjs) and a human clicking around cannot yank its context.
+ * If the human takes the tab over mid-run it is left alone.
+ *
  * Usage: bh x-harvest <query> --from 2026-08-01 --to 2026-09-01 [--step 1d] [--limit 20]
  */
 
@@ -17,6 +25,49 @@ const WORKSPACE = process.env.BH_BROWSER_WORKSPACE ?? path.join(bhHome(), 'brows
 const DB_PATH = process.env.X_DB ?? path.join(dataDir(), 'x_tweets.db');
 
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
+
+/** The app's OWN search tab (targetId): opened by us, reused across slices. */
+let ownTab = null;
+
+/** Open (or reuse) our own search tab and point it at `url`. */
+async function openOwnTab(h, url) {
+  if (ownTab) {
+    try {
+      if ((await h.list_tabs(false)).some(t => t.targetId === ownTab)) {
+        await h.switch_tab(ownTab, false);
+        await h.goto_url(url);
+        return ownTab;
+      }
+    } catch { /* tab died mid-run — fall through and open a fresh one */ }
+  }
+  // `new_tab()` with NO url always creates a fresh background target; the
+  // blank-tab reuse path is url-driven, and a reused blank tab could be the
+  // USER's own empty tab (which we would then hijack and close). Ours must be
+  // provably ours: create, then navigate.
+  ownTab = await h.new_tab();
+  await h.goto_url(url);
+  return ownTab;
+}
+
+/**
+ * Close the tab WE opened — but only while it is still our search tab. If the
+ * human navigated it elsewhere they have taken it over; leave it alone.
+ */
+async function closeOwnTab(h, tid) {
+  if (!tid) return;
+  try {
+    const tab = (await h.list_tabs(false)).find(t => t.targetId === tid);
+    if (!tab) return; // already gone
+    if (!/^https?:\/\/(www\.)?x\.com\/search/.test(tab.url)) {
+      process.stderr.write('[harvest] 搜索 tab 已被用户接管，保留不动\n');
+      return;
+    }
+    await h.close_tab(tid);
+    process.stderr.write('[harvest] 搜索 tab 已关闭\n');
+  } catch (e) {
+    process.stderr.write(`[harvest] 搜索 tab 关闭失败（忽略）：${e instanceof Error ? e.message : String(e)}\n`);
+  }
+}
 
 export async function main(argv = [], ctx) {
   const val = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : undefined; };
@@ -42,18 +93,12 @@ export async function main(argv = [], ctx) {
   const t0 = Date.parse(from);
   const t1 = Date.parse(to);
   let total = 0;
-  for (let start = t0; start < t1; start += stepMs) {
-    const end = Math.min(start + stepMs, t1);
-    const since = new Date(start).toISOString().slice(0, 10);
-    const until = new Date(end).toISOString().slice(0, 10);
-    const url = `https://x.com/search?q=${encodeURIComponent(`${query} since:${since} until:${until}`)}&f=live`;
-    process.stderr.write(`[harvest] ${since} → ${until} … `);
 
-    // open/reuse the search tab
-    const tabs = await h.list_tabs(false);
-    const tab = tabs.find(t => t.url.includes('/search'));
-    if (tab) { await h.switch_tab(tab.targetId, false); await h.goto_url(url); }
-    else await h.new_tab(url);
+  /** One since:/until: slice: point OUR tab at it, scroll-harvest, store. */
+  async function harvestSlice(url, since, until) {
+    process.stderr.write(`[harvest] ${since} → ${until} … `);
+    // D40: our own tab — no sniffing for (and navigating) the user's tab.
+    const tid = await openOwnTab(h, url);
     await sleep(6); // timeline renders the first article only after settling
 
     let all = [];
@@ -71,11 +116,11 @@ export async function main(argv = [], ctx) {
             link: (t.querySelector('a[href*="/status/"]')?.getAttribute('href') || '') });
         }
         return out;
-      })()`)) ?? [];
+      })()`, tid)) ?? [];
       all = all.concat(batch);
-      await h.js('window.scrollTo(0, document.documentElement.scrollHeight)');
+      await h.js('window.scrollTo(0, document.documentElement.scrollHeight)', tid);
       await sleep(1);
-      const height = await h.js('document.documentElement.scrollHeight');
+      const height = await h.js('document.documentElement.scrollHeight', tid);
       if (height === prevH) dry++; else { dry = 0; prevH = height; }
     }
 
@@ -87,8 +132,20 @@ export async function main(argv = [], ctx) {
       posted_at: t.time ?? '', url: t.link ? `https://x.com${t.link.startsWith('/') ? t.link : '/' + t.link}` : '',
     })));
     db.close();
-    total += inserted;
     process.stderr.write(`+${inserted} (raw ${unique.length})\n`);
+    return inserted;
+  }
+
+  try {
+    for (let start = t0; start < t1; start += stepMs) {
+      const end = Math.min(start + stepMs, t1);
+      const since = new Date(start).toISOString().slice(0, 10);
+      const until = new Date(end).toISOString().slice(0, 10);
+      const url = `https://x.com/search?q=${encodeURIComponent(`${query} since:${since} until:${until}`)}&f=live`;
+      total += await harvestSlice(url, since, until);
+    }
+  } finally {
+    await closeOwnTab(h, ownTab); // D40: the tab was ours — take it with us
   }
   const slices = Math.ceil((t1 - t0) / stepMs);
   console.log(JSON.stringify({

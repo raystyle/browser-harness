@@ -370,16 +370,19 @@ const PAGE = `<!doctype html>
   .sourcebar { flex: 0 0 220px; width: 220px; padding: 8px 10px 12px; overflow-y: auto; min-height: 0;
                background: #e8e8ed; font-size: 13px; }
   .layout.nosource .sourcebar { display: none; }
-  /* NSSplitView: 1px rule + circular chevron on the seam */
-  .split { flex: 0 0 1px; position: relative; background: #d2d2d7; cursor: pointer; user-select: none; }
-  .layout.nosource .split { flex: 0 0 16px; background: #e8e8ed; border-right: 1px solid #d2d2d7; }
-  .splitarr { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-              width: 18px; height: 18px; border-radius: 50%;
-              background: #fff; border: .5px solid rgba(0,0,0,.14);
-              box-shadow: 0 1px 2px rgba(0,0,0,.08);
-              color: #6e6e73; font-size: 9px; line-height: 18px; text-align: center;
-              pointer-events: none; }
-  .split:hover .splitarr { border-color: rgba(0,0,0,.22); color: #1d1d1f; }
+  /* NSSplitView seam: a plain 1px rule. The collapse toggles live in the
+     bottom bar (.dashbar), one per side column — click the seam is gone. */
+  .split { flex: 0 0 1px; background: #d2d2d7; }
+  .layout.nosource .split { display: none; }
+  .layout.noright .rightside { display: none; }
+  .dashbar { flex: 0 0 30px; display: flex; align-items: center; justify-content: space-between;
+             padding: 0 10px; background: linear-gradient(#ededed, #e6e6e6);
+             border-top: 1px solid #c6c6c8; }
+  .barbtn { width: 34px; height: 19px; padding: 0; cursor: pointer; font-size: 10px; line-height: 1;
+            border: .5px solid rgba(0,0,0,.18); border-radius: 5px; color: #6e6e73;
+            background: linear-gradient(#fff, #f0f0f0); box-shadow: 0 .5px .5px rgba(0,0,0,.04);
+            display: inline-flex; align-items: center; justify-content: center; }
+  .barbtn:hover { color: #1d1d1f; background: linear-gradient(#fff, #e8e8e8); }
   /* macOS disclosure groups: collapsed by default, triangle rotates open */
   .sourcebar summary { list-style: none; cursor: pointer; font-size: 11px; font-weight: 700; color: var(--label2);
                       text-transform: uppercase; letter-spacing: .5px; padding: 2px 0 6px;
@@ -495,7 +498,7 @@ const PAGE = `<!doctype html>
   </div>
   <div class="layout">
     <aside class="sourcebar" id="source"></aside>
-    <div class="split" id="srcsplit" title="部署信息"><span class="splitarr" id="srcarr">◂</span></div>
+    <div class="split"></div>
     <div class="main">
       <div class="grid" id="root"><div class="card">连接中…</div></div>
     </div>
@@ -509,6 +512,10 @@ const PAGE = `<!doctype html>
         <div id="rail"></div>
       </section>
     </div>
+  </div>
+  <div class="dashbar">
+    <button class="barbtn" id="tglleft" type="button" title="收起 / 展开左侧栏（部署信息）">◂</button>
+    <button class="barbtn" id="tglright" type="button" title="收起 / 展开右侧栏（应用监控与事件）">▸</button>
   </div>
 </div>
 <script>
@@ -828,19 +835,35 @@ document.getElementById('wallbtn').onclick = async () => {
     if (p === 'granted') wallNotify('提醒已开启', 'bh 看板', '', '此后遇墙将以系统通知提醒你');
   } catch { /* prompt dismissed */ }
 };
+// Side columns collapse from the BOTTOM bar (D41): one arrow button per side,
+// each pointing the way the panel will move on the next click (◂ = fold away,
+// ▸ = bring back). State lives per browser in localStorage, server stateless.
 function setSrcbarHidden(hidden) {
   const layout = document.querySelector('.layout');
-  const arr = document.getElementById('srcarr');
+  const btn = document.getElementById('tglleft');
   if (layout) layout.classList.toggle('nosource', hidden);
-  if (arr) arr.textContent = hidden ? '▸' : '◂';
+  if (btn) btn.textContent = hidden ? '▸' : '◂';
   lsSet('bh-srcbar-hidden', hidden);
 }
-document.getElementById('srcsplit').onclick = () => {
+document.getElementById('tglleft').onclick = () => {
   const layout = document.querySelector('.layout');
   if (!layout) return;
   setSrcbarHidden(!layout.classList.contains('nosource'));
 };
 setSrcbarHidden(lsGet('bh-srcbar-hidden', true));
+function setRightbarHidden(hidden) {
+  const layout = document.querySelector('.layout');
+  const btn = document.getElementById('tglright');
+  if (layout) layout.classList.toggle('noright', hidden);
+  if (btn) btn.textContent = hidden ? '◂' : '▸';
+  lsSet('bh-rightbar-hidden', hidden);
+}
+document.getElementById('tglright').onclick = () => {
+  const layout = document.querySelector('.layout');
+  if (!layout) return;
+  setRightbarHidden(!layout.classList.contains('noright'));
+};
+setRightbarHidden(lsGet('bh-rightbar-hidden', false));
 const es = new EventSource('/events');
 es.onmessage = ev => { try { render(JSON.parse(ev.data)); } catch {} };
 </script>

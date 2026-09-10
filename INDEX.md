@@ -59,6 +59,7 @@
 | 2026-09-07 | D12 看板、D13 结构重组、x-intel 合一、0.2.0 封版本地安装 |
 | 2026-09-08 | 双 review（内部 + codex 经 herdr）、0.3.0 封版、herdr skill 首战 |
 | 2026-09-09 | D38 收割风暴限流（0.6.4）+ 状态文案对齐（0.6.5）、hs.d3fend.cn 看板事件混排诊断、封版规矩立档 |
+| 2026-09-10 | D39 命令输错 CTA（0.6.6）、文档账实全面对齐（proven P0002-P0004）、D40 x-intel 监控与搜索分道 + D41 看板双栏折叠（0.6.7，引擎隔离实验与 DOM 探针验收） |
 
 ## 五、研究文档（docs/research/）
 
@@ -94,7 +95,7 @@
 | 编号 | 分类文件 | 覆盖关键词 | 行级编号段 |
 | --- | --- | --- | --- |
 | M101 | `docs/mistakes/M101-移植与平台补齐踩坑.md` | WebSocket 空消息、node--test glob、DevToolsActivePort、Input 挂起、ffmpeg 缺失、浏览器发现 Edge 兜底、锁偷活锁、页面 SDK 四连环坑、白屏边沿告警永不触发、detach 废弃可选 targetId 当匹配键 | M001-M008, M017-M018 |
-| M102 | `docs/mistakes/M102-插件应用与REPL使用踩坑.md` | 多语句片段无 return 静默空输出、模板字面量 \n/反引号被外层解释、js() 吞页内异常、CF 对页内 format=json tarpit、Medium 过墙后搜索会话限流、supervisor 把缺心跳当 stale、ppu-paddle-ocr Windows 路径当 Canvas、fnm 下 spawn npm.cmd 失败 | M009-M013, M015-M016 |
+| M102 | `docs/mistakes/M102-插件应用与REPL使用踩坑.md` | 多语句片段无 return 静默空输出、模板字面量 \n/反引号被外层解释、js() 吞页内异常、CF 对页内 format=json tarpit、Medium 过墙后搜索会话限流、supervisor 把缺心跳当 stale、ppu-paddle-ocr Windows 路径当 Canvas、fnm 下 spawn npm.cmd 失败、插件组件文件直接 node 跑静默 exit 0 | M009-M013, M015-M016, M019 |
 | M103 | `docs/mistakes/M103-开发与安装验收踩坑.md` | 开发态 .bh-dev 与安装态 ~/.config/browser-harness 混用，仓库 dashboard 读空 data，应用监控台不刷新 | M014 |
 
 ## 九、阶段与版本

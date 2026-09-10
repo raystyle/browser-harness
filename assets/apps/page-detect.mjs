@@ -31,7 +31,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 
-export const description = '诊断页面拦截与白屏等异常，并常驻监测浏览器全部页面。';
+export const description = '常驻监测页面拦截与白屏等异常并告警。';
 export const resident = true; // guardian app: lives in the dashboard 应用监控台
 
 const VERSION = '1.1.0';

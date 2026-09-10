@@ -2,6 +2,11 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.6.7] - 2026-09-10
+
+- **x-intel 监控与搜索分道（D40）**：此前监控与搜索共用一套 tab 心智：监控在无 x.com tab 时自作主张后台新建 home tab，harvest 又会抓任意 `/search` tab 直接导航（用户自己的搜索页被劫走）。现分三条独立线：① **监控只附着**，6-8 秒轮询找用户已打开的 x.com 主页（根 / `/home` 时间线）去附着，没有就持续等待（看板显示「等待打开 x.com 主页 tab」），**永不新建 tab**；探针与收割 eval 全部按 targetId 钉死（`js(expr, tid)`），不再抢 daemon 活动 tab。② **搜索（`bh x-intel harvest`）自开自收**：无参 `new_tab()` 必建全新后台 tab 跑 x.com/search 分片（绕开空白页复用，不劫持用户空 tab），跨分片复用一个 tab，收工 `finally` 关闭；若期间用户接管该 tab 则保留不动。③ `bh x-intel search` 仍只读本地库。验收：引擎隔离实验三景（无 home tab 只等不建 tab / 有 home tab 附着收割零建 tab / harvest 自开自收归还）
+- **看板双侧栏可折叠（D41）**：左右两列各自可收起/展开（右侧栏此前不可折叠），折叠按钮从左侧接缝的小圆点改为**窗口最下方的一条控制栏 + 两个箭头按钮**（左栏在左端、右栏在右端；箭头指向「下一次点击后侧栏移动的方向」，收起态 ▸ / 展开态 ◂），状态按浏览器存 localStorage。顺带精炼应用卡片描述（x-intel / page-detect 收敛成一句话）
+
 ## [0.6.6] - 2026-09-10
 
 - **命令输错 CTA 提示（D39）**：退役命令名（如 0.6.2 已改名 `headless` 的 `engine`）此前掉 legacy 裸片段直通，被 daemon eval 炸 `ReferenceError` 误导为程序 bug。现两层 CTA：退役表精确拦截（stderr 给改名说明 + **带用户原参数拼出的可直接执行命令**，exit 2）；postEval 的 ReferenceError 通用层追一行双路径指引（`bh --help` 查命令表 / 检查 JS 片段变量与助手名拼写），agent 可直接执行 stderr 指令。顺带修正 0.6.4/0.6.5 两版 package-lock version 漏同步欠账

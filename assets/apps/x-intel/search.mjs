@@ -1,6 +1,10 @@
 /**
- * x-search — query the local x_tweets.db. Never touches the browser: fresh
- * tweets come from x-monitor; this is the "stored/searched" lane.
+ * x-search — query the local x_tweets.db. Never touches the browser.
+ *
+ * Lane split (D40): the monitor lane (worker.mjs) only ATTACHES to an open
+ * x.com home tab, the search lane (harvest.mjs) opens its own tab for live
+ * x.com/search runs, and this file reads what those two stored. Nothing here
+ * opens, switches or navigates a tab.
  *
  * Usage (exactly one main mode, else usage exit 2):
  *   bh x-search <keyword> [--limit 20] [--author X]

@@ -11,6 +11,7 @@
 | M013 | supervisor-core 把缺心跳（age === null）当 stale：ensureCompanions 先起 page-detect 再起 supervisor，首拍尚无 page-watch.json 就杀刚起来的进程；unwatch 只杀会话写 stopped，监督面不读该状态，下一拍又拉起 | 缺心跳且会话仍活则不重启；stopped 状态跳过；新会话 SPAWN_GRACE；ensureCompanions 同样跳过 stopped [推断: 2026-09-07 review Issue 1/2，逻辑修复已落地，实机循环待复验] | 已机制化（代码约束） |
 | M015 | ppu-paddle-ocr `recognize(string)` 只认以 `/` 或 `http` 开头的路径；Windows `D:\...` 被当成 Canvas，抛 `image.getContext is not a function` | 一律把 PNG 读成 ArrayBuffer 再传入；super-ocr 已按此实现 [实证: 2026-09-07 fixture 裁剪成功后 OCR 报 getContext] | 已机制化（代码约束） |
 | M016 | Windows + fnm：`Get-Command npm` 是 `npm.ps1`，`spawnSync('npm.cmd')` 无 PATH 直调失败（status null） | setup 走 `node npm-cli.js`（与 node.exe 同目录），不经过 .cmd/.ps1 [实证: 2026-09-07 super-ocr setup 首跑 exit null] | 已机制化（代码约束） |
+| M019 | 插件组件文件直接 `node` 跑**静默 exit 0**：`assets/apps/<app>/*.mjs` 只导出 `main`（由入口 `<app>.mjs` 路由调用），无自执行守卫，`node assets/apps/x-intel/harvest.mjs …` 什么都不做也不报错；同族陷阱：`node dist/cli.js x-intel.mjs worker` 把文件名当 JS 片段求值（炸 ReferenceError，D39 已有通用 CTA） | 验证常驻/组件应用一律走 `node dist/cli.js <app> <子命令>`（或 `bh <app> …`）；隔离实验流程见 R001「常驻应用行为验收」 [实证: 2026-09-10 D40 验收首跑 harvest 静默 exit 0 且 stdout/stderr 全空] | 已机制化（文档约束） |
 
 ## 复发监控
 

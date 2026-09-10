@@ -4,10 +4,18 @@
  * (BH_NAME=x-intel) attached to the USER's browser (D11: never spawn,
  * never reshape/close windows, never touch a tab the user is reading).
  *
- * Trigger: poll every 5s for the x.com "N new posts" indicator; the moment a
- * count shows, a harvest round fires (X_INTERVAL is only the fallback cap).
- * Round: find the x.com tab (defer if the user is actively reading it) →
- * scroll-harvest articles (≤6 beats) → click the pill → store to x_tweets.db.
+ * Lane rule (D40) — monitor and search are independent surfaces:
+ *   monitor (this file): ATTACH-ONLY. Every 6-8s it polls for a user-opened
+ *   x.com root/home timeline tab; while none exists it keeps waiting and
+ *   never opens one. Every eval is PINNED to that tab's targetId
+ *   (`js(expr, targetId)`), so the daemon's active tab is never stolen from
+ *   another lane.
+ *   search (harvest.mjs): owns its own tab — opened by the app, closed by it.
+ *
+ * Trigger: the moment the timeline shows the "N new posts" indicator a
+ * harvest round fires (X_INTERVAL is only the fallback cap).
+ * Round: scroll-harvest articles (≤6 beats) → click the pill → store to
+ * x_tweets.db.
  * The heartbeat ticks during waits in ≤2s segments so the supervisor can
  * always tell a live worker from a dead one.
  */
@@ -23,7 +31,6 @@ process.env.BH_NAME = process.env.BH_NAME ?? 'x-intel';
 // through ensureDaemon's spawn).
 process.env.BH_ATTACH_URL_MATCH = process.env.BH_ATTACH_URL_MATCH ?? 'x.com';
 
-const INTERVAL = Number(process.env.X_INTERVAL ?? 600);
 const IDLE_THRESHOLD = Number(process.env.X_IDLE_THRESHOLD ?? 10);
 const WORKSPACE = process.env.BH_BROWSER_WORKSPACE ?? path.join(bhHome(), 'browser-workspace');
 const DATA = dataDir();
@@ -143,6 +150,20 @@ function homeTab(tabs) {
   return tabs.find(t => HOME_URL_RE.test(t.url.split('#')[0]));
 }
 
+/**
+ * readyState poll PINNED to one targetId (never the daemon's active tab).
+ * `timeout` is seconds. A lost evaluate is "unknown", not failure — this
+ * wait's own deadline is the verdict (same contract as wait_for_load).
+ */
+async function waitReadyPinned(h, targetId, timeout) {
+  const deadline = Date.now() + timeout * 1000;
+  while (Date.now() < deadline) {
+    try { if ((await h.js('document.readyState', targetId)) === 'complete') return true; } catch { /* mid-navigation */ }
+    await sleep(0.5);
+  }
+  return false;
+}
+
 async function store(sqlite, tweets) {
   const db = sqlite.openDb(DB_PATH);
   try {
@@ -158,19 +179,17 @@ async function store(sqlite, tweets) {
 async function round(h) {
   // 1. find the home-timeline tab (D27: only the timeline is harvestable —
   //    any other x.com page means the user is browsing; WAIT, don't fail).
-  //    No x.com tab at all still opens a background home tab (unchanged).
+  //    D40 attach-only: with NO home tab there is nothing to attach to, so
+  //    the monitor waits — it never opens a tab of its own (the user's
+  //    browser surface stays exactly as they left it).
   const tabs = await h.list_tabs(false);
   const xtab = homeTab(tabs);
-  let targetId;
-  if (xtab) {
-    await h.switch_tab(xtab.targetId, false);
-    targetId = xtab.targetId;
-  } else if (tabs.some(t => t.url.includes('x.com'))) {
-    return null; // user on a status/search/profile page — wait, not error
-  } else {
-    targetId = await h.new_tab('https://x.com/home');
-  }
-  await h.wait_for_load(20);
+  if (!xtab) return null; // user on another x.com page, or no x.com tab at all — wait
+  // D40: every eval below is pinned to THIS tab. The daemon's active tab is
+  // left alone, so a concurrent x-harvest on its own tab (and the human
+  // clicking around) cannot have their context yanked by the monitor.
+  const targetId = xtab.targetId;
+  await waitReadyPinned(h, targetId, 20);
 
   // 2. auto-trigger means auto-trigger: when the indicator shows a count we
   // harvest, even if the user happens to be looking at x.com right now (the
@@ -180,24 +199,24 @@ async function round(h) {
   let all = [];
   let prevH = 0;
   for (let beat = 0; beat < 6; beat++) {
-    const batch = (await h.js(EXTRACT)) ?? [];
+    const batch = (await h.js(EXTRACT, targetId)) ?? [];
     all = all.concat(batch);
-    await h.js('window.scrollTo(0, Math.max(document.documentElement.scrollHeight, document.body.scrollHeight))');
+    await h.js('window.scrollTo(0, Math.max(document.documentElement.scrollHeight, document.body.scrollHeight))', targetId);
     await sleep(1);
-    const height = await h.js('document.documentElement.scrollHeight');
+    const height = await h.js('document.documentElement.scrollHeight', targetId);
     if (height === prevH) break;
     prevH = height;
   }
 
   // 4. back to top; click the "new posts" pill (≤2 tries) and harvest again
-  await h.js('window.scrollTo(0, 0)');
+  await h.js('window.scrollTo(0, 0)', targetId);
   await sleep(1);
   for (let i = 0; i < 2; i++) {
-    const found = await h.js(FIND_PILL);
+    const found = await h.js(FIND_PILL, targetId);
     if (found) {
-      await h.js(CLICK_PILL);
+      await h.js(CLICK_PILL, targetId);
       await sleep(2.5);
-      all = all.concat((await h.js(EXTRACT)) ?? []);
+      all = all.concat((await h.js(EXTRACT, targetId)) ?? []);
       break;
     }
     await sleep(3);
@@ -219,15 +238,20 @@ async function round(h) {
   return st;
 }
 
-// --- event-driven trigger ------------------------------------------------------
-// Every 5s, probe the x.com tab for the "N new posts" indicator; the moment
-// it shows a count, a harvest round auto-triggers. X_INTERVAL is only the
-// fallback cap (default 5 min) for a tab whose indicator never renders;
-// MIN_SPACING (60s) prevents harvest storms. js() works on hidden tabs —
-// only painting throttles in the background, not evaluation.
+// --- attach-only trigger -------------------------------------------------------
+// Every 6-8s, poll for the user's x.com home tab and probe its "N new posts"
+// indicator; the moment it shows a count, a harvest round auto-triggers.
+// X_INTERVAL is only the fallback cap (default 5 min) for a tab whose
+// indicator never renders; MIN_SPACING (60s) prevents harvest storms. js()
+// works on hidden tabs — only painting throttles in the background, not
+// evaluation.
 
 const FALLBACK_INTERVAL = Number(process.env.X_INTERVAL ?? 300);
 const MIN_ROUND_SPACING = Number(process.env.X_MIN_SPACING ?? 60);
+// D40: with no home tab open there is nothing to attach to. Report that state
+// once the absence has survived a couple of ticks (a real "waiting", not a
+// navigation hiccup), then keep polling inside the same fallback window.
+const NO_HOME_REPORT_MS = Number(process.env.X_NO_HOME_REPORT_MS ?? 15) * 1000;
 
 /**
  * X's new-posts pill is anchored by data-testid="pillLabel" (observed
@@ -248,33 +272,35 @@ const PILL_COUNT = `(() => {
 })()`;
 
 /**
- * Hybrid trigger, checked every 5s:
- *  1. EVENT signals from the daemon's ring buffer — a HomeTimeline response
- *     (X just fetched new posts) or a tab-title badge change reacts the
- *     moment X itself learns about posts, even before any pill renders.
- *  2. PILL presence/count (the DOM truth — works when the tab is visible).
- *  3. Fallback cap for a quiet tab (FALLBACK_INTERVAL).
- * Ceiling on freshness is X's OWN update cadence: a hidden tab throttles
- * its timers, so even event signals arrive at ~1/min there.
+ * Attach-only trigger loop, one tick every 6-8s:
+ *  - no home tab → keep waiting ('no-home-tab' once the gap is not a hiccup)
+ *  - home tab, PILL_COUNT > 0 → 'pill xN' (harvest fires)
+ *  - home tab, quiet → keep probing until the FALLBACK_INTERVAL cap
+ * The probe is PINNED to the home tab's targetId (D40): the daemon's active
+ * tab is never switched, so a running search lane keeps its own context.
+ * Ceiling on freshness is X's OWN update cadence: a hidden tab throttles its
+ * timers. NOTE: never drain_events here — draining erases the daemon's event
+ * ring that the dashboard peeks.
  */
-const TL_URL_RE = /Home(Latest)?Timeline|\/graphql\/[^/]+\/Home/;
-
 async function waitForTrigger(h) {
   const deadline = Date.now() + FALLBACK_INTERVAL * 1000;
+  let absentSince = 0;
   while (Date.now() < deadline) {
     tick(); // the wait can outlive HEARTBEAT_TIMEOUT if we forget this
     try {
       // D27 human-coexistence gate: probe only on the home timeline. While
-      // the user browses elsewhere on x.com there is nothing to probe —
-      // wait (and never touch their tab, never open a new one).
-      // NOTE: never drain_events here — draining erases the daemon's event
-      // ring that the dashboard peeks. The pill probe is the trigger; the
-      // fallback cap covers quiet tabs.
+      // the user browses elsewhere on x.com there is nothing to probe — wait
+      // (and never touch their tab, never open a new one; D40: this lane
+      // never creates a tab, period).
       const home = homeTab(await h.list_tabs(false));
       if (home) {
-        await h.switch_tab(home.targetId, false);
-        const n = Number(await h.js(PILL_COUNT) ?? 0);
+        absentSince = 0;
+        const n = Number(await h.js(PILL_COUNT, home.targetId) ?? 0);
         if (n > 0) return `pill x${n}`;
+      } else if (!absentSince) {
+        absentSince = Date.now();
+      } else if (Date.now() - absentSince >= NO_HOME_REPORT_MS) {
+        return 'no-home-tab';
       }
     } catch { /* tab mid-navigation / daemon re-attaching — next tick */ }
     // D34 cadence: 6-8s jittered (coprime with page-detect's 10s sweep, and
@@ -292,6 +318,18 @@ function userIdleNow() {
 
 // --- main loop ---------------------------------------------------------------
 
+/**
+ * Wording for the waiting state: "no x.com tab at all" (attach-side) and
+ * "user is browsing another x.com page" (D27) are both waiting, not failure.
+ */
+async function waitingText(h) {
+  try {
+    const tabs = await h.list_tabs(false);
+    if (tabs.some(t => t.url.includes('x.com'))) return '等待时间线 tab（用户浏览其他 x.com 页面）';
+  } catch { /* daemon re-attaching — report the attach-side wording */ }
+  return '等待打开 x.com 主页 tab（只附着，不自建）';
+}
+
 /** The x-intel daemon's port: registry record is the authority. */
 async function daemonPort() {
   if (process.env.BH_PORT) return Number(process.env.BH_PORT);
@@ -306,19 +344,34 @@ async function main() {
   await ensureDaemon();
   const h = createHelpers(remoteHost(await daemonPort()));
 
-  // Pin the daemon's active session to the x.com tab up front: probes and
-  // rounds must evaluate THERE, not on the daemon's dedicated blank tab.
-  try {
-    const tabs = await h.list_tabs(false);
-    const xtab = tabs.find(t => t.url.includes('x.com'));
-    if (xtab) await h.switch_tab(xtab.targetId, false);
-  } catch { /* daemon still attaching — round 1 will switch */ }
-
   tick(); // visible to the supervisor immediately on start
-  wlog(`x-intel::x-monitor 启动：6-8 秒随机探测 · 触发后 10 秒内随机抓取 · 轮间隔 ≥${MIN_ROUND_SPACING} 秒 · 兜底每 ${FALLBACK_INTERVAL} 秒`);
+  wlog(`x-intel::x-monitor 启动：只附着已打开的 x.com 主页（没有就等，不自建 tab）· 6-8 秒随机探测 · 触发后 10 秒内随机抓取 · 轮间隔 ≥${MIN_ROUND_SPACING} 秒 · 兜底每 ${FALLBACK_INTERVAL} 秒`);
+  // Waiting is a state, not an event: report it on transition (and refresh the
+  // dashboard card), never as a log line every tick.
+  let waitLogged = '';
+  const noteWaiting = (text) => {
+    writeStatus({
+      state: 'running',
+      metrics: [
+        { label: '检测节奏', value: text },
+        { label: '库存', value: '监测中（等待附着）' },
+      ],
+    });
+    if (waitLogged !== text) {
+      wlog(`x-intel::x-monitor 等待\n${text}，不动用户页面，继续探测`);
+      waitLogged = text;
+    }
+  };
   let lastRoundAt = 0;
   for (;;) {
     const trigger = await waitForTrigger(h);
+    // D40 attach-only: no user-opened x.com home tab → nothing to attach to.
+    // Wait (the user's browser is never reshaped) and keep polling.
+    if (trigger === 'no-home-tab') {
+      noteWaiting(await waitingText(h));
+      continue;
+    }
+    waitLogged = '';
     // Harvest-storm guard: MIN_ROUND_SPACING exists precisely for this gate.
     // Without it a background tab's title badge (N) — which never clears on
     // its own — keeps the trigger lit and rounds fire back-to-back (~10s
@@ -335,40 +388,32 @@ async function main() {
     try {
       const r = await round(h); // { inserted, total, earliest, latest, detected } | null = waiting
       if (!r) {
-        // D27: the user is browsing a non-timeline x.com page. This is
-        // coexistence, not failure — no degraded state, no error event;
-        // probing resumes the moment a home tab exists again.
-        wlog('x-intel::x-monitor 等待\n时间线 tab 不在（用户浏览其他 x.com 页面），不动用户页面，恢复探测');
-        writeStatus({
-          state: 'running',
-          metrics: [
-            { label: '检测节奏', value: '等待时间线 tab（用户浏览中）' },
-            { label: '库存', value: '监测中' },
-          ],
-        });
+        // D27/D40: the tab went away (user navigated off the timeline).
+        // Coexistence, not failure — no degraded state, no error event.
+        noteWaiting(await waitingText(h));
         ok = true; // waiting is a completed round, not a failure
         lastRoundAt = Date.now();
       } else {
-      const zh = (iso) => iso ? new Date(iso).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '无';
-      const triggerZh = { pill: '新帖指示器', 'timeline-response': '时间线更新', 'title-badge': '标题计数', 'fallback-interval': '定时兜底' }[trigger.split(' ')[0]] ?? trigger;
-      const dup = r.detected - r.inserted;
-      // Consistent arithmetic on ONE basis (what the page actually presented):
-      // detected = inserted + already-in-db. The pill's own claim is context
-      // noise (it reports "≥1" when it has no number), never a metric.
-      wlog(`x-intel::x-monitor 刷新\n页面检测到新贴 ${r.detected} 个 · 新入库 ${r.inserted} 个 · 其中 ${dup} 个已存在 · 库存共 ${r.total} 帖`);
-      writeStatus({
-        state: 'running',
-        metrics: [
-          { label: '检测节奏', value: `6-8 秒随机探测 · 轮间隔 ≥${MIN_ROUND_SPACING} 秒` },
-          { label: '库存', value: `${r.total} 帖` },
-          { label: '库内时间线', value: `${zh(r.earliest)} 至 ${zh(r.latest)}` },
-        ],
-        event: r.inserted > 0
-          ? { ts: new Date().toISOString(), text: `新入库 ${r.inserted} · 共 ${r.total} 帖` }
-          : undefined,
-      });
-      ok = true;
-      lastRoundAt = Date.now();
+        const zh = (iso) => iso ? new Date(iso).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '无';
+        const triggerZh = { pill: '新帖指示器', 'fallback-interval': '定时兜底' }[trigger.split(' ')[0]] ?? trigger;
+        const dup = r.detected - r.inserted;
+        // Consistent arithmetic on ONE basis (what the page actually presented):
+        // detected = inserted + already-in-db. The pill's own claim is context
+        // noise (it reports "≥1" when it has no number), never a metric.
+        wlog(`x-intel::x-monitor 刷新（${triggerZh}）\n页面检测到新贴 ${r.detected} 个 · 新入库 ${r.inserted} 个 · 其中 ${dup} 个已存在 · 库存共 ${r.total} 帖`);
+        writeStatus({
+          state: 'running',
+          metrics: [
+            { label: '检测节奏', value: `6-8 秒随机探测 · 轮间隔 ≥${MIN_ROUND_SPACING} 秒` },
+            { label: '库存', value: `${r.total} 帖` },
+            { label: '库内时间线', value: `${zh(r.earliest)} 至 ${zh(r.latest)}` },
+          ],
+          event: r.inserted > 0
+            ? { ts: new Date().toISOString(), text: `新入库 ${r.inserted} · 共 ${r.total} 帖` }
+            : undefined,
+        });
+        ok = true;
+        lastRoundAt = Date.now();
       }
     } catch (e) {
       wlog(`x-intel::x-monitor 刷新失败：${e instanceof Error ? e.message : String(e)}\n${e instanceof Error ? String(e.stack ?? '').split('\n').slice(1, 4).join('\n') : ''}`);

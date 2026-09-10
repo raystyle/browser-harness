@@ -1,7 +1,20 @@
 # TODO：当前目标任务进度清单
 
 > 角色：当前目标的任务进度清单。目标完成后回填 docs/proven 对应方案，起新清单。
-> 当前锚点：文档账实全面对齐（2026-09-10 完成：git 全史 + oma trace 过程证据双源交叉，proven P0002-P0004 归档，四原语与 R001/ROADMAP 刷新；0.6.5 已发，D01-D38 全部有归档）；各需求清单留作记录。
+> 当前锚点：x-intel 监控与搜索分道独立（D40，2026-09-10）；上一锚点文档账实全面对齐已完成（proven P0002-P0004 归档、四原语与 R001/ROADMAP 刷新），各历史清单留作记录。
+
+## D40 任务清单
+
+| 任务项 | 进度 | 说明 | 出处 |
+| --- | --- | --- | --- |
+| 监控只附着（删自建 tab 分支） | 已完成 | worker.mjs：无 home tab 时不 new_tab，持续等待；`waitForTrigger` 缺 tab 超 `X_NO_HOME_REPORT_MS`（默认 15s）报等待态，主循环写 running 等待状态（文案区分「无 x.com tab」与「用户浏览其他页」） | PRD D40 |
+| 探针/收割 eval 钉 targetId | 已完成 | 去掉 `switch_tab` 抢活动 tab；`js(expr, tid)` + `waitReadyPinned`；FIND/CLICK pill 与滚动全钉；刷新日志带触发来源（新帖指示器/定时兜底） | PRD D40 / D34 |
+| harvest 自开专属 tab 自收 | 已完成 | `new_tab()` 无参建全新 target（绕开空白页复用，防劫持用户空 tab）-> `goto_url` 搜索页 -> 跨分片复用 -> `finally` 关闭；被用户接管（URL 已非 x.com/search）则保留 | PRD D40 |
+| x-search 与文档同步 | 已完成 | search.mjs 头注写明三线分工；SKILL 应用节分道规则；G002 禁令与迁移分级；P0002 行为基线注记；README 一句话 | AGENTS 文档义务表 |
+| 验收：npm test + 引擎隔离实验 | 已完成 | 82 测全绿；引擎（`bh headless`）三景：无 home tab 只等不建 tab、有 home tab 附着收割零建 tab、harvest 自开自收归还 | G002 / R001 |
+| D41 看板双侧栏折叠 + 描述精炼 | 已完成 | dashboard.ts：`noright`/`nosource` 双类 + 底部控制栏两箭头按钮（左端管左栏、右端管右栏，箭头指向下一次点击的移动方向，状态存 localStorage）；x-intel/page-detect 描述收敛一句话 | 用户指令 2026-09-10 |
+| 验收：看板 DOM 探针 | 已完成 | 引擎打开看板 1440x900：两按钮 y=876 贴底；右栏 490 与 0 互换、左栏 220 与 0 互换、箭头 ◂/▸ 翻转、localStorage 键写入 | G002 / R001 |
+| 封版 0.6.7（版本三件套 + 提交推送 + 本地轮换） | 已完成 | 用户拍板「发布个小版本 提交 推送 本地更新轮换」：bump 0.6.7 + CHANGELOG 封段 + pack/install/sync + `bh upgrade --offline --yes` 七步滚动终验全守护 0.6.7 看板 200；tag/Release 随提交推送 | R001 封版八步 |
 
 ## 文档账实对齐任务清单（2026-09-10）
 

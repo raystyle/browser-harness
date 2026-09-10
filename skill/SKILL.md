@@ -83,6 +83,8 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
 - `bh x-intel search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器；JSON `{_ok,_v,_ts,count,items}`（`--csv` 仍出 CSV）
 - `bh x-intel harvest <q> --from --to`：时间分片全量收割；完成打指标 `{_ok,inserted,slices,db}`
 
+  **x-intel 分道规则（D40）**：三条线互不干扰。① 监控只**附着**你已打开的 x.com 主页（`x.com` 根或 `/home`）时间线，6-8 秒轮询找它；**没有就等着，绝不自己新建 tab**，也不会去导航你的其它 x.com 页面（探针与收割的 eval 全按 targetId 钉死，不抢 daemon 活动 tab）。② `harvest` 是**自己新开一个后台 tab 去搜** x.com/search，跨分片复用、跑完自己关掉；若期间你接管了那个 tab 就保留不动。③ `search` 只读本地库，永不碰浏览器。要恢复监控：先在浏览器里打开 x.com 主页（日志/看板会显示「等待打开 x.com 主页 tab」）。
+
 **插件契约**：`apps/<name>.mjs` 导出 `main(argv, ctx)` 返回退出码；ctx 注入 `{helpers, browserHelpers}`；`browser_helpers.mjs` 命名导出按名覆盖内置。开发标准见 repo 的 G002/R002。
 
 ## workspace 索引（`~/.config/browser-harness`）
