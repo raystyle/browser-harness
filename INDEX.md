@@ -68,6 +68,7 @@
 | S002 | `docs/research/S002-agent原生浏览器运行时对照研究.md` | gsd-browser（agent 原生浏览器运行时）逐点对照：daemon/CDP/IPC 架构独立同源获旁证；人机共存维度 bh 独占；候选吸收版本化元素引用（待 D35）；含 25 开源项目赛道全景（本仓家族在列 #5） |
 | S003 | `docs/research/S003-Lightpanda适配可行性.md` | Lightpanda 适配可行性：Windows 仅 WSL2；无渲染引擎致 652 直调面不成立；全面适配不做，正解为自起 headless 引擎（已 D37 落地，Lightpanda 降可选） |
 | S004 | `docs/research/S004-GitHub发版与分支合并标准流程.md` | GitHub Flow/Git Flow/Trunk-Based 三模型与合并三式、分支保护、发版自动化调研；本仓对照：单人 trunk 直推为合法形态，维持手动封版八步，仅即刻采纳 main 禁 force push |
+| S005 | `docs/research/S005-BrowserUsePi上游动态研究.md` | 上游团队蒸馏作 @browser_use/pi 研究：Pi Mono + 持久 V8 REPL + raw CDP、砍语义层走涌现式 helper；与本仓架构对照（Node/TS/CDP/持久会话方向一致，helper 哲学分歧）、harness 维护观察与可吸收项 |
 
 登记表：`docs/research/README.md`。S001 为 D11 架构转向的首个研究场景。
 
