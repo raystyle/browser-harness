@@ -53,13 +53,25 @@ export class Harness {
     // session.domains evals that never pass the dispatcher.
     session.onCreateTarget = (tid) => { this.ownedTargets.add(tid); };
     // The thin SDK's use() lane bypasses helpers and adoptSession — without
-    // this hook its attach event would be gated out as "transient" while the
-    // active session moved, splitting the instance in two: operate on the new
-    // tab, report/close the old one. Bookkeeping only (no domain enables, no
-    // marker): use() is the bare protocol primitive and keeps its contract.
+    // this hook its attach would be gated out as "transient" while the active
+    // session moved, splitting the instance in two: operate on the new tab,
+    // report/close the old one. The page-only invariant converges HERE (the
+    // event lane enforces it by target type): an iframe-scoped use() — the
+    // documented cross-origin pattern — must not hijack the tracked surface,
+    // so the commit is conditional on Target.getTargetInfo reporting a page.
+    // Bookkeeping only (no domain enables, no marker): use() is the bare
+    // protocol primitive and keeps its contract.
     session.onUse = (sessionId, targetId) => {
-      this.attachedTargetId = targetId;
-      this.adoptedSessionId = sessionId;
+      const seq = ++this.useSeq;
+      void this.rawBrowserCall('Target.getTargetInfo', { targetId })
+        .then((r: any) => {
+          if (seq !== this.useSeq) return; // a newer use() superseded this one
+          if (r?.targetInfo?.type === 'page') {
+            this.attachedTargetId = targetId;
+            this.adoptedSessionId = sessionId;
+          }
+        })
+        .catch(() => {}); // probe failure leaves the previous surface intact
     };
     // Browser-level death watch: a closed WS means the user's browser went
     // down — keep trying to re-attach (the toggle channel survives browser
@@ -100,6 +112,9 @@ export class Harness {
    *  → adoptSession). While set, transient probe sessions (js(expr, targetId)
    *  attaches fresh per call) must not touch the tracked surface — see onEvent. */
   private adoptedSessionId: string | undefined;
+
+  /** Monotonic ticket for the onUse async commit: only the LATEST use() wins. */
+  private useSeq = 0;
 
   private guardBrowserLifetime(method: string, params: any): void {
     if (method === 'Browser.close') {
