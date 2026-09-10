@@ -80,7 +80,7 @@ description: 用 JavaScript 通过 DevTools Protocol 驱动 Chrome 的完整平�
   - 错误决策：`NOT_FOUND` 引擎未装时先 `setup`；无匹配 tab 如实列出。`CAPTCHA|WALL` 交互式拼图/滑块请在窗口内人工完成，禁止当图片 OCR。`TIMEOUT` SDK 未就绪。`count=0` 是成功（页上没有图形验证码），不是失败。不自动填写、不自动重试。
 - `bh cookie-io export|import`：CDP 存取，默认拒绝全量导出（--domain/--all）
 - `bh x-intel [start|stop]`：X 监控（附着浏览器 + SQLite 去重库；worker 在 rmux `x-monitor`，由 supervisor-core 守护；关浏览器即暂停，只重拉 worker）
-- `bh x-intel search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器；JSON `{_ok,_v,_ts,count,items}`（`--csv` 仍出 CSV）
+- `bh x-intel search <kw>|--recent|--since|--stats`：查本地库，不碰浏览器；关键词走 FTS5 + simple 分词器（中文 jieba 分词、词序无关、拉丁词拼音可搜；平台无二进制时回退 LIKE，信封 `via` 字段明示）；JSON `{_ok,_v,_ts,count,via,items}`（`--csv` 仍出 CSV）
 - `bh x-intel harvest <q> --from --to`：时间分片全量收割；完成打指标 `{_ok,inserted,slices,db}`
 
   **x-intel 分道规则（D40）**：三条线互不干扰。① 监控只**附着**你已打开的 x.com 主页（`x.com` 根或 `/home`）时间线，6-8 秒轮询找它；**没有就等着，绝不自己新建 tab**，也不会去导航你的其它 x.com 页面（探针与收割的 eval 全按 targetId 钉死，不抢 daemon 活动 tab）。② `harvest` 是**自己新开一个后台 tab 去搜** x.com/search，跨分片复用、跑完自己关掉；若期间你接管了那个 tab 就保留不动。③ `search` 只读本地库，永不碰浏览器。要恢复监控：先在浏览器里打开 x.com 主页（日志/看板会显示「等待打开 x.com 主页 tab」）。

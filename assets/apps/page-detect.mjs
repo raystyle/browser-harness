@@ -131,6 +131,10 @@ async function probeTab(h, targetId) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     busyStreak = /eval busy|429/.test(msg) ? busyStreak + 1 : 0;
+    // Tab churn: the target closed between list_tabs and this attach. A gone
+    // tab is withdrawn, not failed — no log, no event, the next sweep just
+    // re-lists (same philosophy as D27: churn is a state, not an error).
+    if (/No target with given id found/i.test(msg)) return null;
     logLine(`[${hms()}] page-detect 探测失败：${String(targetId).slice(0, 24)} ${msg}`);
     return null;
   }

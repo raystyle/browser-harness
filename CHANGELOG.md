@@ -2,6 +2,13 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
+## [0.6.9] - 2026-09-10
+
+- **x-intel 本地库分词搜索（D44，wangfenjin/simple）**：本地 x_tweets.db 关键词搜索此前是整串 LIKE，中文词序不同即漏。现在走 FTS5 + vendored simple tokenizer（jieba 分词、CJK 逐字索引、拉丁词拼音可搜）：`sqlite.ts` 新增 `ensureSimpleFts`（外容 FTS5 虚表 + 首建 rebuild + COUNT 对账漂移自愈）与 `simpleExtPath` 平台二进制定位（win/linux x64、osx x64/arm64，Release v0.7.1 预编译，随包分发 ~15MB）；`storeTweets` 显式维护索引（去重不重索引）；`bh x-intel search <kw>` 关键词走 `MATCH jieba_query(?)`，平台无二进制或加载失败自动回退 LIKE，信封 `via: fts-simple|like|scan` 明示。6 条 FTS 单测（词序无关命中/存量 rebuild/增量维护/去重/降级契约/二进制在位），安装态真库 2257 帖实测 `via: fts-simple` 且命中两条 LIKE 盲区帖
+- **修复：瞬态探测不再误清 daemon 附着面（D42，看板误报「已脱离」消除）**：D40 起监控 eval 全部按 targetId 钉死，`js(expr, tid)` 每次调用瞬态 attach/eval/detach，而旧的事件归属里任何命中被追踪 target 的 detach 都清空附着面，x-intel 每 6-8 秒探测后看板就把活着的 daemon 显示成「已脱离」（0.6.7 起即有的假象）。现在 harness 区分持久 adoption 会话与瞬态探测会话：有 adoption 时瞬态 attach 不改写、detach 不清空，只有 adoption 自己的 teardown（tab 被关）才清；重连时三个指针（activeSession/attachedTarget/adoption）随 WS 一并清。经右侧 codex 三轮 review 对齐：补 `Session.onUse` transport hook（`session.use()` 车道接入 adoption 记账，异步验型 page-only，iframe 换面不劫持追踪面）。回归测试 3 条（pinned-eval 模式 / use-after-adoption 不脑裂 / iframe-use 反例）；安装态实测 37 秒 10 采样 current 恒定、事件环 29 对瞬态探测全落在被附着 tab
+- **page-detect tab 轮换降噪**：tab 在 list_tabs 与探测 attach 之间被关（`No target with given id found`）是正常轮换，不再当探测失败记事件刷看板「消息」
+- 已知残余（候选 D43 待立项）：CLI/upgrade 重启的 x-intel daemon 丢 `BH_ATTACH_URL_MATCH` 变懒实例，附着偏好实例化落注册表后随之解决
+
 ## [0.6.8] - 2026-09-10
 
 - **看板折叠按钮改为分界线上的隐藏式按钮（D41 第 2 轮修正）**：0.6.7 把折叠入口放在窗口底部控制栏，用户裁定改为「融入列的分界线上、隐藏式按钮」。现在左右两条 1px 分界线各自承载一个圆形箭头按钮：默认 `opacity: 0` 完全隐藏，鼠标悬停分界线才浮现（键盘 `:focus-visible` 亦然，鼠标点击不会残留展开态）；收起的一侧留 20px 槽位并把按钮压到半透明，既不被窗口边缘裁切也留着点回来的入口。箭头语义不变：指向下一次点击后侧栏移动的方向

@@ -80,7 +80,7 @@ bh upgrade --yes    # 检测老守护进程 -> 下载安装 -> 稳定轮换 -> �
 
 ## 内置应用
 
-`web-fetch`（正文抓取）· `google/bing/medium-search`（两步契约搜索）· `page-detect`（页面被 Cloudflare/验证码拦截时弹窗告警）· `x-intel`（附着你已打开的 X 主页时间线入库；搜索命令自开专属 tab）· `super-ocr`（验证码图识别）· `cookie-io`（登录态迁移）· `supervisor-core`（常驻应用自愈），全部经 `bh <name>` 调用，墙与人机验证如实报告，不硬闯。
+`web-fetch`（正文抓取）· `google/bing/medium-search`（两步契约搜索）· `page-detect`（页面被 Cloudflare/验证码拦截时弹窗告警）· `x-intel`（附着你已打开的 X 主页时间线入库；本地库中文分词检索 FTS5+simple，harvest 自开专属 tab）· `super-ocr`（验证码图识别）· `cookie-io`（登录态迁移）· `supervisor-core`（常驻应用自愈），全部经 `bh <name>` 调用，墙与人机验证如实报告，不硬闯。
 
 ## 深入
 

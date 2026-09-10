@@ -52,7 +52,7 @@ export async function main(argv = []) {
     return 2;
   }
 
-  const { openDb, tableExists } = await importDist('sqlite.js');
+  const { openDb, tableExists, ensureSimpleFts } = await importDist('sqlite.js');
   const db = openDb(DB_PATH);
   try {
     if (!tableExists(db)) {
@@ -77,7 +77,15 @@ export async function main(argv = []) {
 
     const where = [];
     const params = [];
-    if (keyword) { where.push('text LIKE ?'); params.push(`%${keyword}%`); }
+    // D44: keyword search rides FTS5 + the vendored simple tokenizer —
+    // jieba segments the query INSIDE SQLite (word-order-free AND), pinyin
+    // expands latin tokens. No binary for this platform (or load failure)
+    // falls back to the old contiguous LIKE.
+    const fts = keyword ? ensureSimpleFts(db) : false;
+    if (keyword) {
+      if (fts) { where.push('tweets_fts MATCH jieba_query(?)'); params.push(keyword); }
+      else { where.push('text LIKE ?'); params.push(`%${keyword}%`); }
+    }
     if (author) {
       where.push('(author LIKE ? OR handle LIKE ?)');
       const a = author.replace(/^@/, '');
@@ -89,7 +97,7 @@ export async function main(argv = []) {
       where.push('first_seen_at >= ?');
       params.push(cutoff);
     }
-    const sql = `SELECT * FROM tweets ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY first_seen_at DESC, id DESC LIMIT ?`;
+    const sql = `SELECT ${fts ? 'tweets.*' : '*'} FROM tweets ${fts ? 'JOIN tweets_fts ON tweets_fts.rowid = tweets.id ' : ''}${where.length ? 'WHERE ' + where.join(' AND ') + ' ' : ''}ORDER BY first_seen_at DESC, id DESC LIMIT ?`;
     const rows = db.prepare(sql).all(...params, limit);
 
     if (csv) {
@@ -118,7 +126,7 @@ export async function main(argv = []) {
       return 0;
     }
 
-    console.log(JSON.stringify(ok({ count: rows.length, items: rows }), null, 1));
+    console.log(JSON.stringify(ok({ count: rows.length, via: keyword ? (fts ? 'fts-simple' : 'like') : 'scan', items: rows }), null, 1));
     return 0;
   } finally {
     db.close();
