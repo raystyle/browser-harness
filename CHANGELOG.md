@@ -2,7 +2,7 @@
 
 本文件记录可交付变更。粒度纪律：只留版本级里程碑（定位变更/发布/阶段完成/核心能力整体落地）。
 
-## [0.7.0] - 2026-09-10
+## [0.7.0] - 2026-09-11
 
 - **附着偏好实例化（D43）**：`BH_ATTACH_URL_MATCH` 此前靠派生进程 env 继承，CLI/upgrade 重生的 x-intel daemon 丢偏好变懒实例，看板「已脱离」误报随每次升级滚动复现。现在偏好落实例注册表旁的 `runtime/bh-<name>.attach` 文件（x-intel start 时写入），daemon 自读；env 变量仍优先（空串显式关）。裸 `bh --name x-intel --restart` 不再丢 eager 附着
 - **应用共享 lib 合一（D47a）**：x-intel 与 x-search 各自携带的 lib.mjs 同源双拷贝已现漂移，合并为 `apps/lib.mjs` 单份（page-detect/super-ocr 借道的旧路径一并改指），旧拷贝进 RETIRED 清退
